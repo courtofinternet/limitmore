@@ -1,0 +1,109 @@
+.mainContainer {
+  display: flex;
+  height: calc(100vh - 64px);
+  /* Minus header */
+  overflow: hidden;
+}
+
+.contentArea {
+  flex: 1;
+  overflow-y: auto;
+  transition: margin-right 0.3s;
+  /* Removed padding here to allow sticky header to reach edges if needed, 
+     but added container class for inner content */
+  display: flex;
+  flex-direction: column;
+}
+
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  /* Relative to contentArea which scrolls */
+  z-index: 40;
+  background-color: var(--background);
+  border-bottom: 1px solid var(--card-border);
+  padding: 0 var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.scrollContent {
+  padding: 0 var(--spacing-xl) var(--spacing-xl) var(--spacing-xl);
+  /* Increased side padding */
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Fixed 4 columns, prevent blowout with minmax(0, ...) */
+  gap: var(--spacing-md);
+}
+
+@media (max-width: 1400px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sidePanelContainer {
+  width: 450px;
+  /* Slightly wider side panel */
+  flex-shrink: 0;
+  border-left: 1px solid var(--card-border);
+  background: var(--card-bg);
+  height: 100%;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+
+  to {
+    width: 450px;
+    opacity: 1;
+  }
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.sectionTitle {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.sortOptions {
+  display: flex;
+  gap: var(--spacing-lg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sortOptions span {
+  cursor: pointer;
+}
+
+.sortOptions span:hover {
+  color: var(--foreground);
+}
