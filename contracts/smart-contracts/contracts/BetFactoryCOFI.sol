@@ -30,7 +30,7 @@ contract BetFactoryCOFI is Ownable {
 
     event OracleResolutionReceived(address indexed betContract, uint32 sourceChainId);
 
-    event ResolutionRequested(address indexed betContract, address indexed creator, uint256 timestamp);
+    event ResolutionRequested(address indexed betContract, address indexed creator, uint8 resolutionType, uint256 timestamp);
 
     event BridgeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
 
@@ -83,14 +83,15 @@ contract BetFactoryCOFI is Ownable {
      * @dev Forward resolution request from a deployed bet
      * Only callable by deployed BetCOFI contracts
      * Emits ResolutionRequested so external services only need to monitor the factory
+     * @param _resolutionType The type of resolution needed (0=CRYPTO, 1=STOCKS, 2=NEWS)
      */
-    function forwardResolutionRequest() external {
+    function forwardResolutionRequest(uint8 _resolutionType) external {
         require(deployedBets[msg.sender], "Not a deployed bet");
 
         BetCOFI bet = BetCOFI(msg.sender);
         address creator = bet.creator();
 
-        emit ResolutionRequested(msg.sender, creator, block.timestamp);
+        emit ResolutionRequested(msg.sender, creator, _resolutionType, block.timestamp);
     }
 
     /**
@@ -100,6 +101,7 @@ contract BetFactoryCOFI is Ownable {
      * @param sideAName Name of side A
      * @param sideBName Name of side B
      * @param endDate Timestamp when betting closes
+     * @param resolutionType Type of resolution (0=CRYPTO, 1=STOCKS, 2=NEWS)
      * @return Address of newly deployed BetCOFI contract
      */
     function createBet(
@@ -107,8 +109,11 @@ contract BetFactoryCOFI is Ownable {
         string memory description,
         string memory sideAName,
         string memory sideBName,
-        uint256 endDate
+        uint256 endDate,
+        uint8 resolutionType
     ) external returns (address) {
+        require(resolutionType <= 2, "Invalid resolution type");
+
         // Deploy new BetCOFI contract
         BetCOFI bet = new BetCOFI(
             msg.sender,         // creator = transaction sender
@@ -118,7 +123,8 @@ contract BetFactoryCOFI is Ownable {
             sideBName,
             endDate,
             usdcToken,          // USDC token address
-            address(this)       // factory = trusted gatekeeper
+            address(this),      // factory = trusted gatekeeper
+            BetCOFI.ResolutionType(resolutionType)
         );
 
         address betAddress = address(bet);

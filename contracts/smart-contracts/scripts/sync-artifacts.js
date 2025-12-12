@@ -45,9 +45,9 @@ function syncContract(contractName, fileName) {
 }
 
 // Sync all contracts
-console.log("🔄 Syncing contract artifacts to frontend...\n");
+console.log("Syncing contract artifacts to frontend...\n");
 
-syncContract("SimpleBet");
-syncContract("BetFactory");
+syncContract("BetCOFI");
+syncContract("BetFactoryCOFI");
 
-console.log("\n✨ Done! Contract artifacts synced.");
+console.log("\nDone! Contract artifacts synced.");

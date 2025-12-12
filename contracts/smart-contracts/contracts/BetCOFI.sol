@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IBetFactoryCOFI {
-    function forwardResolutionRequest() external;
+    function forwardResolutionRequest(uint8 resolutionType) external;
 }
 
 /**
@@ -27,6 +27,13 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         UNDETERMINED  // Cancelled/unresolvable - full refunds available
     }
 
+    // Resolution type - determines which oracle/method to use
+    enum ResolutionType {
+        CRYPTO,       // Crypto price resolution
+        STOCKS,       // Stock market resolution
+        NEWS          // News/event resolution
+    }
+
     // Bet metadata
     address public immutable creator;
     string public title;
@@ -37,6 +44,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     uint256 public immutable endDate;
     address public immutable factory;
     IERC20 public immutable token; // USDC token contract
+    ResolutionType public immutable resolutionType; // Type of resolution needed
 
     // Resolution timeout for cancelBet()
     uint256 private constant RESOLUTION_TIMEOUT = 7 days;
@@ -74,6 +82,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
      * @param _endDate Timestamp when betting closes
      * @param _token Address of USDC token contract
      * @param _factory Address of factory contract (trusted gatekeeper)
+     * @param _resolutionType Type of resolution (CRYPTO, STOCKS, NEWS)
      */
     constructor(
         address _creator,
@@ -83,7 +92,8 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         string memory _sideBName,
         uint256 _endDate,
         address _token,
-        address _factory
+        address _factory,
+        ResolutionType _resolutionType
     ) Ownable(_factory) {
         require(_creator != address(0), "Invalid creator address");
         require(_token != address(0), "Invalid token address");
@@ -101,6 +111,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         endDate = _endDate;
         factory = _factory;
         token = IERC20(_token);
+        resolutionType = _resolutionType;
         status = BetStatus.ACTIVE;
     }
 
@@ -152,7 +163,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         status = BetStatus.RESOLVING;
         resolutionTimestamp = block.timestamp;
 
-        IBetFactoryCOFI(factory).forwardResolutionRequest();
+        IBetFactoryCOFI(factory).forwardResolutionRequest(uint8(resolutionType));
     }
 
     /**
