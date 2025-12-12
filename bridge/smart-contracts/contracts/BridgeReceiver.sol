@@ -9,61 +9,113 @@ import {IGenLayerBridgeReceiver} from "./interfaces/IGenLayerBridgeReceiver.sol"
 
 /**
  * @title BridgeReceiver
- * @notice Receives EVM->GenLayer messages via LayerZero and stores them for polling.
- *         Bridge service polls pending messages and relays to GenLayer.
+ * @notice A simple contract that "receives" cross-chain messages from LayerZero Endpoint V2.
+ *         It then dispatches the `_message` to a specified local contract or does logic directly.
+ *         Only accepts messages from trusted remote BridgeForwarder contracts.
  */
 contract BridgeReceiver is ILayerZeroReceiver, Ownable, ReentrancyGuard {
     ILayerZeroEndpointV2 public immutable endpoint;
 
+    /// @dev Store the trusted remote forwarder for each chain: (remoteEid => remoteForwarder)
     mapping(uint32 => bytes32) public trustedForwarders;
 
-    struct GenLayerMessage {
-        bytes32 messageId;
-        uint32 srcChainId;
-        address srcSender;
-        address targetContract;
-        bytes data;
-        bool relayed;
-    }
+    //--------------------------------------------------------------------------
+    // Events
+    //--------------------------------------------------------------------------
+    /// @dev Emitted when a new trusted forwarder is set
+    event TrustedForwarderSet(
+        uint32 indexed remoteEid,
+        bytes32 indexed remoteForwarder
+    );
 
-    mapping(bytes32 => GenLayerMessage) public genLayerMessages;
-    bytes32[] public genLayerMessageIds;
-    mapping(address => bool) public authorizedRelayers;
+    /// @dev Emitted when a trusted forwarder is removed
+    event TrustedForwarderRemoved(
+        uint32 indexed remoteEid,
+        bytes32 indexed remoteForwarder
+    );
 
-    event TrustedForwarderSet(uint32 indexed remoteEid, bytes32 indexed remoteForwarder);
-    event TrustedForwarderRemoved(uint32 indexed remoteEid, bytes32 indexed remoteForwarder);
-    event ForwardCallSuccess(uint32 indexed srcEid, bytes32 indexed srcSender, address localContract, bytes callData);
-    event MessageForGenLayer(bytes32 indexed messageId, uint32 srcChainId, address srcSender, address targetContract, bytes data);
-    event GenLayerMessageRelayed(bytes32 indexed messageId);
-    event AuthorizedRelayerSet(address indexed relayer, bool authorized);
+    /// @dev Emitted upon a successful local call within `lzReceive`
+    event ForwardCallSuccess(
+        uint32 indexed srcEid,
+        bytes32 indexed srcSender,
+        address localContract,
+        bytes callData
+    );
 
+    /**
+     * @notice The constructor that sets the local endpoint (LayerZeroEndpointV2) used for receiving cross-chain messages.
+     * @param _endpoint The address of the local chain's LayerZeroEndpointV2 contract
+     * @param initialOwner The address that will be the owner of this contract
+     */
     constructor(address _endpoint, address initialOwner) Ownable(initialOwner) {
         require(_endpoint != address(0), "BridgeReceiver: _endpoint=0");
         endpoint = ILayerZeroEndpointV2(_endpoint);
     }
 
-    function setTrustedForwarder(uint32 _remoteEid, bytes32 _remoteForwarder) external onlyOwner {
-        require(_remoteForwarder != bytes32(0), "BridgeReceiver: _remoteForwarder=0");
+    /**
+     * @notice Set the trusted remote forwarder for a specific chain
+     * @param _remoteEid The remote chain's endpoint ID
+     * @param _remoteForwarder The address of the BridgeForwarder on that chain (as bytes32)
+     */
+    function setTrustedForwarder(
+        uint32 _remoteEid,
+        bytes32 _remoteForwarder
+    ) external onlyOwner {
+        require(
+            _remoteForwarder != bytes32(0),
+            "BridgeReceiver: _remoteForwarder=0"
+        );
         trustedForwarders[_remoteEid] = _remoteForwarder;
         emit TrustedForwarderSet(_remoteEid, _remoteForwarder);
     }
 
+    /**
+     * @notice Remove a trusted remote forwarder
+     * @param _remoteEid The remote chain's endpoint ID to remove
+     */
     function removeTrustedForwarder(uint32 _remoteEid) external onlyOwner {
-        require(trustedForwarders[_remoteEid] != bytes32(0), "BridgeReceiver: no forwarder set");
+        require(
+            trustedForwarders[_remoteEid] != bytes32(0),
+            "BridgeReceiver: no forwarder set"
+        );
         emit TrustedForwarderRemoved(_remoteEid, trustedForwarders[_remoteEid]);
         delete trustedForwarders[_remoteEid];
     }
 
-    // ILayerZeroReceiver
+    //--------------------------------------------------------------------------
+    // ILayerZeroReceiver OVERRIDES
+    //--------------------------------------------------------------------------
 
-    function allowInitializePath(Origin calldata _origin) external view returns (bool) {
+    /**
+     * @dev Called by Endpoint V2 to see if the path is "initialized."
+     *      If we trust that `_origin.sender` is a valid remote,
+     *      we can return true. Otherwise false.
+     * @param _origin Info about the remote. { srcEid, sender, nonce }.
+     * @return Whether we allow receiving from that remote
+     */
+    function allowInitializePath(
+        Origin calldata _origin
+    ) external view returns (bool) {
+        // Only allow messages from trusted forwarders
         return trustedForwarders[_origin.srcEid] == _origin.sender;
     }
 
-    function nextNonce(uint32, bytes32) external pure returns (uint64) {
-        return 0;
+    /**
+     * @dev For message ordering. If you want strict ordering, return the next nonce.
+     *      Otherwise, returning 0 => means no ordering enforced at the OApp level.
+     */
+    function nextNonce(
+        uint32 /*_eid*/,
+        bytes32 /*_sender*/
+    ) external pure returns (uint64) {
+        return 0; // No ordering enforced
     }
 
+    /**
+     * @dev The main function called by the LayerZero executor to deliver a cross-chain message.
+     * @param _origin The remote info: { srcEid, sender, nonce }
+     * @param _message The cross-chain payload
+     */
     function lzReceive(
         Origin calldata _origin,
         bytes32,
@@ -71,102 +123,38 @@ contract BridgeReceiver is ILayerZeroReceiver, Ownable, ReentrancyGuard {
         address,
         bytes calldata
     ) external payable nonReentrant {
-        require(msg.sender == address(endpoint), "BridgeReceiver: only Endpoint can call");
-        require(trustedForwarders[_origin.srcEid] == _origin.sender, "BridgeReceiver: untrusted forwarder");
-        _handleGenLayerMessage(_message);
-    }
+        require(
+            msg.sender == address(endpoint),
+            "BridgeReceiver: only Endpoint can call"
+        );
 
-    function decodeGenLayerMessage(bytes calldata _message) external pure returns (
-        uint32 srcChainId,
-        address srcSender,
-        address targetContract,
-        bytes memory data,
-        bytes32 messageId
-    ) {
-        return abi.decode(_message, (uint32, address, address, bytes, bytes32));
-    }
+        // Require the remote sender to be a trusted forwarder
+        require(
+            trustedForwarders[_origin.srcEid] == _origin.sender,
+            "BridgeReceiver: untrusted forwarder"
+        );
 
-    function _handleGenLayerMessage(bytes calldata _message) internal {
+        // Decode the local contract and its callData
         (
             uint32 srcChainId,
             address srcSender,
-            address targetContract,
-            bytes memory data,
-            bytes32 messageId
-        ) = abi.decode(_message, (uint32, address, address, bytes, bytes32));
+            address localContract,
+            bytes memory message
+        ) = abi.decode(_message, (uint32, address, address, bytes));
+        require(localContract != address(0), "BridgeReceiver: localContract=0");
 
-        genLayerMessages[messageId] = GenLayerMessage({
-            messageId: messageId,
-            srcChainId: srcChainId,
-            srcSender: srcSender,
-            targetContract: targetContract,
-            data: data,
-            relayed: false
-        });
-        genLayerMessageIds.push(messageId);
+        IGenLayerBridgeReceiver(localContract).processBridgeMessage(
+            srcChainId,
+            srcSender,
+            message
+        );
 
-        emit MessageForGenLayer(messageId, srcChainId, srcSender, targetContract, data);
-    }
-
-    // Relayer Management
-
-    function setAuthorizedRelayer(address _relayer, bool _authorized) external onlyOwner {
-        require(_relayer != address(0), "BridgeReceiver: _relayer=0");
-        authorizedRelayers[_relayer] = _authorized;
-        emit AuthorizedRelayerSet(_relayer, _authorized);
-    }
-
-    // Message Polling
-
-    function getGenLayerMessageIds() external view returns (bytes32[] memory) {
-        return genLayerMessageIds;
-    }
-
-    function getGenLayerMessageCount() external view returns (uint256) {
-        return genLayerMessageIds.length;
-    }
-
-    function getGenLayerMessage(bytes32 _messageId) external view returns (GenLayerMessage memory) {
-        return genLayerMessages[_messageId];
-    }
-
-    function markMessageRelayed(bytes32 _messageId) external {
-        require(authorizedRelayers[msg.sender], "BridgeReceiver: not authorized relayer");
-        require(genLayerMessages[_messageId].messageId != bytes32(0), "BridgeReceiver: message not found");
-        require(!genLayerMessages[_messageId].relayed, "BridgeReceiver: already relayed");
-
-        genLayerMessages[_messageId].relayed = true;
-        emit GenLayerMessageRelayed(_messageId);
-    }
-
-    function isMessageRelayed(bytes32 _messageId) external view returns (bool) {
-        return genLayerMessages[_messageId].relayed;
-    }
-
-    function getPendingGenLayerMessages() external view returns (
-        bytes32[] memory messageIds,
-        GenLayerMessage[] memory messages
-    ) {
-        uint256 pendingCount = 0;
-        for (uint256 i = 0; i < genLayerMessageIds.length; i++) {
-            if (!genLayerMessages[genLayerMessageIds[i]].relayed) {
-                pendingCount++;
-            }
-        }
-
-        messageIds = new bytes32[](pendingCount);
-        messages = new GenLayerMessage[](pendingCount);
-
-        uint256 index = 0;
-        for (uint256 i = 0; i < genLayerMessageIds.length; i++) {
-            bytes32 msgId = genLayerMessageIds[i];
-            if (!genLayerMessages[msgId].relayed) {
-                messageIds[index] = msgId;
-                messages[index] = genLayerMessages[msgId];
-                index++;
-            }
-        }
-
-        return (messageIds, messages);
+        // Emit an event upon success
+        emit ForwardCallSuccess(
+            _origin.srcEid,
+            _origin.sender,
+            localContract,
+            message
+        );
     }
 }

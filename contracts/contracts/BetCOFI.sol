@@ -3,25 +3,26 @@ pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {OApp, Origin, MessagingFee, MessagingReceipt} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
-import {OptionsBuilder} from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OptionsBuilder.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+interface IBetFactoryCOFI {
+    function forwardResolutionRequest() external;
+}
 
 /**
  * BetCOFI - COFI (Court of Internet) binary prediction market contract
  * Each bet is deployed as a separate contract instance
  * Anyone can bet on side A or B until the end date
- * Creator resolves the bet after end date via LayerZero oracle
+ * Creator marks bet for resolution, GenLayer oracle resolves via bridge
+ * Factory acts as trusted gatekeeper for oracle resolutions
  * Winners claim proportional share of losing side's pool
  * Enhanced with reentrancy protection and ERC20 validation
  */
-contract BetCOFI is OApp, ReentrancyGuard {
-    using OptionsBuilder for bytes;
-
+contract BetCOFI is ReentrancyGuard, Ownable {
     // Bet status states
     enum BetStatus {
         ACTIVE,       // Betting is open
-        RESOLVING,    // Resolution request sent to oracle, awaiting response
+        RESOLVING,    // Resolution requested, awaiting oracle response
         RESOLVED,     // Final outcome received and set
         UNDETERMINED  // Cancelled/unresolvable - full refunds available
     }
@@ -34,13 +35,8 @@ contract BetCOFI is OApp, ReentrancyGuard {
     string public sideBName;
     uint256 public immutable creationDate;
     uint256 public immutable endDate;
-    address public immutable houseAddress;
     address public immutable factory;
     IERC20 public immutable token; // USDC token contract
-
-    // LayerZero configuration (hardcoded for Base Sepolia)
-    uint32 private constant ORACLE_EID = 40245; // Base Sepolia endpoint ID
-    address private constant LZ_ENDPOINT = 0x6EDCE65403992e310A62460808c4b910D972f10f; // Base Sepolia LayerZero endpoint
 
     // Resolution timeout for cancelBet()
     uint256 private constant RESOLUTION_TIMEOUT = 7 days;
@@ -49,7 +45,6 @@ contract BetCOFI is OApp, ReentrancyGuard {
     bool public resolved;
     bool public winnerSideA; // true if side A wins, false if side B wins
     BetStatus public status;
-    bytes32 public resolutionRequestId; // LayerZero GUID for tracking
     uint256 public resolutionTimestamp; // When resolve() was called (for timeout)
 
     // Betting pools
@@ -67,8 +62,7 @@ contract BetCOFI is OApp, ReentrancyGuard {
     event BetResolved(bool sideAWins, uint256 timestamp);
     event BetUndetermined(uint256 timestamp);
     event WinningsClaimed(address indexed winner, uint256 amount);
-    event ResolutionRequested(bytes32 indexed requestId, uint256 timestamp);
-    event ResolutionReceived(bytes32 indexed requestId, bool sideAWins);
+    event ResolutionReceived(bool sideAWins);
 
     /**
      * @dev Constructor called by factory when deploying new bet
@@ -78,9 +72,8 @@ contract BetCOFI is OApp, ReentrancyGuard {
      * @param _sideAName Name/description of side A
      * @param _sideBName Name/description of side B
      * @param _endDate Timestamp when betting closes
-     * @param _houseAddress Address to receive funds if empty side wins
      * @param _token Address of USDC token contract
-     * @param _factory Address of factory contract (for mediated betting)
+     * @param _factory Address of factory contract (trusted gatekeeper)
      */
     constructor(
         address _creator,
@@ -89,13 +82,10 @@ contract BetCOFI is OApp, ReentrancyGuard {
         string memory _sideAName,
         string memory _sideBName,
         uint256 _endDate,
-        address _houseAddress,
         address _token,
         address _factory
-    ) OApp(LZ_ENDPOINT, _factory) Ownable(_factory) {
+    ) Ownable(_factory) {
         require(_creator != address(0), "Invalid creator address");
-        require(_endDate > block.timestamp, "End date must be in the future");
-        require(_houseAddress != address(0), "Invalid house address");
         require(_token != address(0), "Invalid token address");
         require(_factory != address(0), "Invalid factory address");
         require(bytes(_title).length > 0, "Title cannot be empty");
@@ -109,10 +99,9 @@ contract BetCOFI is OApp, ReentrancyGuard {
         sideBName = _sideBName;
         creationDate = block.timestamp;
         endDate = _endDate;
-        houseAddress = _houseAddress;
         factory = _factory;
         token = IERC20(_token);
-        status = BetStatus.ACTIVE; // Initialize bet as active
+        status = BetStatus.ACTIVE;
     }
 
     /**
@@ -151,74 +140,38 @@ contract BetCOFI is OApp, ReentrancyGuard {
     }
 
     /**
-     * @dev Resolve the bet via LayerZero oracle (only creator, after end date)
-     * Sends resolution request to oracle contract which will respond asynchronously
+     * @dev Mark bet for resolution (only creator, after end date)
+     * Forwards to factory which emits ResolutionRequested event
+     * GenLayer oracle monitors factory and sends resolution via bridge
      */
-    function resolve() external payable {
+    function resolve() external {
         require(msg.sender == creator, "Only creator can resolve");
         require(block.timestamp >= endDate, "Cannot resolve before end date");
         require(status == BetStatus.ACTIVE, "Bet not active");
 
-        // Encode request payload: bet metadata for intelligent oracle decisions
-        bytes memory payload = abi.encode(
-            address(this),      // Bet contract requesting resolution
-            title,              // Bet title (e.g., "Will Bitcoin hit $100k by EOY 2024?")
-            description,        // Detailed description
-            sideAName,          // Side A name (e.g., "Yes")
-            sideBName,          // Side B name (e.g., "No")
-            creationDate,       // When bet was created
-            endDate             // When betting closed
-        );
-
-        // Build LayerZero options (200k gas for oracle processing)
-        bytes memory options = OptionsBuilder
-            .newOptions()
-            .addExecutorLzReceiveOption(200000, 0);
-
-        // Send cross-chain message to oracle
-        MessagingReceipt memory receipt = _lzSend(
-            ORACLE_EID,
-            payload,
-            options,
-            MessagingFee(msg.value, 0),
-            payable(msg.sender)
-        );
-
-        // Update state
         status = BetStatus.RESOLVING;
         resolutionTimestamp = block.timestamp;
-        resolutionRequestId = receipt.guid;
 
-        emit ResolutionRequested(receipt.guid, block.timestamp);
+        IBetFactoryCOFI(factory).forwardResolutionRequest();
     }
 
     /**
-     * @dev Receive oracle response via LayerZero
-     * @dev Only callable by LayerZero endpoint from authorized oracle peer
+     * @dev Receive oracle resolution via factory (which receives from GenLayer bridge)
+     * Factory acts as trusted gatekeeper - it verifies the source before calling this
+     * @param _message The encoded resolution data
      */
-    function _lzReceive(
-        Origin calldata _origin,
-        bytes32 _guid,
-        bytes calldata payload,
-        address /*_executor*/,
-        bytes calldata /*_extraData*/
-    ) internal override {
-        // Verify this is from our oracle endpoint
-        require(_origin.srcEid == ORACLE_EID, "Invalid source chain");
+    function setResolution(bytes calldata _message) external {
+        require(msg.sender == factory, "Only factory can dispatch");
 
-        // Decode oracle response (new format with isUndetermined)
         (
             address betAddress,
             bool sideAWins,
             bool isUndetermined,
-            ,  // oracleTimestamp - not used
+            ,  // timestamp - not used
                // requestId - not used
-        ) = abi.decode(payload, (address, bool, bool, uint256, bytes32));
+        ) = abi.decode(_message, (address, bool, bool, uint256, bytes32));
 
-        // Verify this response is for THIS bet
         require(betAddress == address(this), "Response for wrong bet");
-
-        // Verify we're waiting for resolution
         require(status == BetStatus.RESOLVING, "Not awaiting resolution");
 
         resolved = true;
@@ -237,7 +190,7 @@ contract BetCOFI is OApp, ReentrancyGuard {
             emit BetResolved(sideAWins, block.timestamp);
         }
 
-        emit ResolutionReceived(_guid, sideAWins);
+        emit ResolutionReceived(sideAWins);
     }
 
     /**

@@ -4,16 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Bidirectional cross-chain messaging bridge between GenLayer and EVM chains (Base, zkSync) using LayerZero V2. zkSync serves as the hub chain for both directions.
+One-way cross-chain messaging bridge from GenLayer to EVM chains (Base) using LayerZero V2. zkSync serves as the hub chain.
 
 ## Architecture
 
 ```
 GenLayer → EVM:
   GenLayer BridgeSender.py → Service polls → zkSync BridgeForwarder → LayerZero → Target EVM
-
-EVM → GenLayer:
-  EVM BridgeSender.sol → LayerZero → zkSync BridgeReceiver (stores) → Service polls → GenLayer BridgeReceiver.py → Target IC claims
 ```
 
 ## Directory Structure
@@ -21,17 +18,13 @@ EVM → GenLayer:
 - `/smart-contracts` - Solidity contracts for EVM chains (Hardhat)
 - `/intelligent-contracts` - Python contracts for GenLayer
 - `/service` - Node.js relay service that polls and relays messages
-- `/example` - Complete bidirectional example with StringSender/StringReceiver
 
 ## Key Contracts
 
 | Contract              | Chain    | Purpose                               |
 | --------------------- | -------- | ------------------------------------- |
 | `BridgeSender.py`     | GenLayer | Stores outbound GL→EVM messages       |
-| `BridgeReceiver.py`   | GenLayer | Receives EVM→GL messages (PULL model) |
 | `BridgeForwarder.sol` | zkSync   | Relays GL→EVM via LayerZero           |
-| `BridgeReceiver.sol`  | zkSync   | Stores EVM→GL messages for polling    |
-| `BridgeSender.sol`    | Base/EVM | Entry point for EVM→GL messages       |
 
 ## Commands
 
@@ -46,16 +39,12 @@ npx hardhat compile
 # Run tests
 npx hardhat test
 
-# Deploy (unified script)
-CONTRACT=receiver npx hardhat run scripts/deploy.ts --network zkSyncSepoliaTestnet
-CONTRACT=forwarder npx hardhat run scripts/deploy.ts --network zkSyncSepoliaTestnet
-CONTRACT=sender npx hardhat run scripts/deploy.ts --network baseSepoliaTestnet
+# Deploy BridgeForwarder
+npx hardhat run scripts/deploy.ts --network zkSyncSepoliaTestnet
 
-# Configure (unified script)
-ACTION=set-trusted-forwarder npx hardhat run scripts/configure.ts --network zkSyncSepoliaTestnet
-ACTION=set-authorized-relayer npx hardhat run scripts/configure.ts --network zkSyncSepoliaTestnet
-ACTION=set-bridge-address npx hardhat run scripts/configure.ts --network zkSyncSepoliaTestnet
-ACTION=set-sender-receiver npx hardhat run scripts/configure.ts --network baseSepoliaTestnet
+# Configure destination bridge
+DST_EID=40245 DST_BRIDGE_ADDRESS=0x... BRIDGE_FORWARDER_ADDRESS=0x... \
+  npx hardhat run scripts/configure.ts --network zkSyncSepoliaTestnet
 ```
 
 ### Bridge Service
@@ -67,29 +56,16 @@ npm run build    # Compile TypeScript
 npm start        # Run service
 
 # Debug CLI
-npx ts-node cli.ts check-receiver    # Check zkSync BridgeReceiver state
-npx ts-node cli.ts check-sender      # Check Base BridgeSender state
 npx ts-node cli.ts check-forwarder   # Check zkSync BridgeForwarder state
-npx ts-node cli.ts check-config      # Verify all configurations
-npx ts-node cli.ts pending-messages  # List pending messages on zkSync
+npx ts-node cli.ts check-config      # Verify configuration
 npx ts-node cli.ts debug-tx <hash>   # Debug a transaction
-```
-
-### Example Contracts
-
-```bash
-cd example
-
-# Deploy StringSender to GenLayer
-npx tsx scripts/deploy-string-sender.ts --bridge-sender <addr> --target-contract <addr>
 ```
 
 ## Key Design Patterns
 
-1. **Stored Message Polling** - Both directions poll stored messages instead of events for reliability
-2. **PULL Model for GenLayer** - Target ICs must call `claim_messages()` because GenLayer's `emit()` doesn't propagate state changes
-3. **Authorized Relayers** - Bridge service wallet must be authorized on both BridgeReceiver contracts
-4. **Replay Prevention** - `usedTxHash` mapping in BridgeForwarder, `received_messages` in BridgeReceiver.py
+1. **Stored Message Polling** - Service polls stored messages from GenLayer instead of events for reliability
+2. **Authorized Callers** - Bridge service wallet must be authorized as CALLER_ROLE on BridgeForwarder
+3. **Replay Prevention** - `usedTxHash` mapping in BridgeForwarder prevents duplicate relays
 
 ## LayerZero Endpoint IDs
 
@@ -106,22 +82,16 @@ zkSync Mainnet: 30165    Base Mainnet: 30184
 # RPC URLs
 FORWARDER_NETWORK_RPC_URL=https://sepolia.era.zksync.dev
 GENLAYER_RPC_URL=https://studio-stage.genlayer.com/api
-ZKSYNC_RPC_URL=https://sepolia.era.zksync.dev
 
-# GenLayer → EVM contracts
+# Contracts
 BRIDGE_FORWARDER_ADDRESS=0x...
-BRIDGE_SENDER_ADDRESS=0x...
-
-# EVM → GenLayer contracts
-BRIDGE_RECEIVER_IC_ADDRESS=0x...
-ZKSYNC_BRIDGE_RECEIVER_ADDRESS=0x...
+BRIDGE_SENDER_ADDRESS=0x...  # GenLayer BridgeSender IC address
 
 # Auth
 PRIVATE_KEY=...
 
-# Sync intervals (cron format)
-BRIDGE_SYNC_INTERVAL=*/1 * * * *
-EVM_TO_GL_SYNC_INTERVAL=*/1 * * * *
+# Sync interval (cron format)
+BRIDGE_SYNC_INTERVAL=*/5 * * * *
 ```
 
 ### Smart Contracts (`smart-contracts/.env`)
@@ -129,42 +99,24 @@ EVM_TO_GL_SYNC_INTERVAL=*/1 * * * *
 ```bash
 PRIVATE_KEY=...
 OWNER_ADDRESS=0x...
-CALLER_ADDRESS=0x...
+CALLER_ADDRESS=0x...  # Service wallet address
 
-# LayerZero endpoints
+# LayerZero endpoint
 ZKSYNCSEPOLIATESTNET_ENDPOINT=0xe2Ef622A13e71D9Dd2BBd12cd4b27e1516FA8a09
-BASESEPOLIATESTNET_ENDPOINT=0x6EDCE65403992e310A62460808c4b910D972f10f
-
-# Contract addresses for configuration scripts
-BRIDGE_FORWARDER_ADDRESS=0x...
-BRIDGE_RECEIVER_ADDRESS=0x...
-ZKSYNC_BRIDGE_RECEIVER_ADDRESS=0x...
 ```
 
-## Message Flow Details
-
-### GenLayer → EVM
+## Message Flow
 
 1. Source IC calls `BridgeSender.send_message(target_chain_eid, target_contract, data)`
 2. Service polls `get_message_hashes()` and `get_message()` on GenLayer
 3. Service calls `BridgeForwarder.callRemoteArbitrary()` on zkSync with LayerZero fee
-4. LayerZero delivers to `BridgeReceiver` on destination chain
-5. BridgeReceiver dispatches to target contract via `processBridgeMessage()`
-
-### EVM → GenLayer
-
-1. Source contract calls `BridgeSender.sendToGenLayer(targetContract, data, options)`
-2. LayerZero delivers to `BridgeReceiver.sol` on zkSync
-3. BridgeReceiver stores message (not just event) for polling
-4. Service polls `getPendingGenLayerMessages()` on zkSync
-5. Service calls `BridgeReceiver.receive_message()` on GenLayer
-6. Service calls `markMessageRelayed()` on zkSync
-7. Target IC calls `BridgeReceiver.claim_all_messages()` to receive (PULL model)
+4. LayerZero delivers to destination chain
+5. Target contract receives via `processBridgeMessage()`
 
 ## Testing
 
 ```bash
 cd smart-contracts
-npx hardhat test                           # All tests
-npx hardhat test test/BridgeForwarder.test.ts  # Specific file
+npx hardhat test
+npx hardhat test test/BridgeForwarder.test.ts
 ```

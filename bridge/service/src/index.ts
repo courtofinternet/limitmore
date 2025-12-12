@@ -1,40 +1,22 @@
 /**
  * Bridge Service - Entry Point
  *
- * Bidirectional relay between GenLayer and EVM chains via zkSync hub.
+ * Relay service for GenLayer → EVM messages via zkSync hub.
  */
 
 import cron from "node-cron";
-import {
-  getBridgeSyncInterval,
-  getEvmToGlSyncInterval,
-  isEvmToGlBridgingEnabled,
-} from "./config.js";
+import { getBridgeSyncInterval } from "./config.js";
 import { GenLayerToEvmRelay } from "./relay/GenLayerToEvm.js";
-import { EvmToGenLayerRelay } from "./relay/EvmToGenLayer.js";
 
 async function main() {
-  console.log("Starting Bridge Service");
+  console.log("Starting Bridge Service (GenLayer → EVM)");
 
-  // GenLayer -> EVM relay
   const glToEvm = new GenLayerToEvmRelay();
   const glToEvmInterval = getBridgeSyncInterval();
 
-  console.log(`  GenLayer → EVM: ${glToEvmInterval}`);
+  console.log(`  Sync interval: ${glToEvmInterval}`);
   glToEvm.sync(); // Initial sync
   cron.schedule(glToEvmInterval, () => glToEvm.sync());
-
-  // EVM -> GenLayer relay (if configured)
-  if (isEvmToGlBridgingEnabled()) {
-    const evmToGl = new EvmToGenLayerRelay();
-    const evmToGlInterval = getEvmToGlSyncInterval();
-
-    console.log(`  EVM → GenLayer: ${evmToGlInterval}`);
-    evmToGl.sync(); // Initial sync
-    cron.schedule(evmToGlInterval, () => evmToGl.sync());
-  } else {
-    console.log("  EVM → GenLayer: DISABLED (missing config)");
-  }
 
   console.log("Bridge service running");
 }

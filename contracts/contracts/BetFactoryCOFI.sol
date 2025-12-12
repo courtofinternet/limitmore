@@ -3,17 +3,19 @@ pragma solidity ^0.8.22;
 
 import "./BetCOFI.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * BetFactoryCOFI - Factory contract for deploying BetCOFI instances
  * Deployed once, then anyone can create bets through it
- * The factory deployer becomes the house address for all bets
+ * Acts as trusted gatekeeper for GenLayer oracle resolutions via BridgeReceiver
  */
-contract BetFactoryCOFI {
+contract BetFactoryCOFI is Ownable {
     // Immutable configuration
-    address public immutable house;
     address public immutable usdcToken;
-    address public immutable oracleAddress;   // Oracle contract address
+
+    // Bridge receiver address (receives LayerZero messages and forwards here)
+    address public bridgeReceiver;
 
     // All deployed bets
     address[] public allBets;
@@ -22,35 +24,73 @@ contract BetFactoryCOFI {
     mapping(address => bool) public deployedBets;
 
     // Events
-    event BetCreated(
-        address indexed betAddress,
-        address indexed creator,
-        string title,
-        uint256 endDate
-    );
+    event BetCreated(address indexed betAddress,address indexed creator,string title,uint256 endDate );
 
-    event BetPlaced(
-        address indexed betAddress,
-        address indexed bettor,
-        bool onSideA,
-        uint256 amount
-    );
+    event BetPlaced(address indexed betAddress, address indexed bettor, bool onSideA, uint256 amount);
+
+    event OracleResolutionReceived(address indexed betContract, uint32 sourceChainId);
+
+    event ResolutionRequested(address indexed betContract, address indexed creator, uint256 timestamp);
+
+    event BridgeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
 
     /**
-     * @dev Constructor - sets house, USDC, and oracle configuration
+     * @dev Constructor - sets USDC configuration
      * @param _usdcToken Address of USDC token contract
-     * @param _oracleAddress Oracle contract address
      */
-    constructor(
-        address _usdcToken,
-        address _oracleAddress
-    ) {
+    constructor(address _usdcToken) Ownable(msg.sender) {
         require(_usdcToken != address(0), "Invalid USDC address");
-        require(_oracleAddress != address(0), "Invalid oracle address");
-
-        house = msg.sender;  // Factory deployer becomes house
         usdcToken = _usdcToken;
-        oracleAddress = _oracleAddress;
+    }
+
+    /**
+     * @dev Set the bridge receiver address (only owner)
+     * @param _bridgeReceiver Address of BridgeReceiver contract
+     */
+    function setBridgeReceiver(address _bridgeReceiver) external onlyOwner {
+        require(_bridgeReceiver != address(0), "Invalid bridge receiver");
+        address oldReceiver = bridgeReceiver;
+        bridgeReceiver = _bridgeReceiver;
+        emit BridgeReceiverUpdated(oldReceiver, _bridgeReceiver);
+    }
+
+    /**
+     * @dev Receive oracle resolution via BridgeReceiver (implements IGenLayerBridgeReceiver)
+     * Called by BridgeReceiver after it receives a LayerZero message
+     * @param _sourceChainId The chain ID where the message originated
+     * @param _message The encoded resolution data
+     */
+    function processBridgeMessage(
+        uint32 _sourceChainId,
+        address,
+        bytes calldata _message
+    ) external {
+        require(msg.sender == bridgeReceiver, "Only bridge receiver");
+
+        // Decode resolution data: (targetContract = BetCOFI address, data = resolution bytes)
+        (address targetContract, bytes memory data) = abi.decode(_message, (address, bytes));
+
+        // Verify target is a legitimate bet from this factory
+        require(deployedBets[targetContract], "Unknown bet contract");
+
+        // Dispatch resolution to target BetCOFI
+        BetCOFI(targetContract).setResolution(data);
+
+        emit OracleResolutionReceived(targetContract, _sourceChainId);
+    }
+
+    /**
+     * @dev Forward resolution request from a deployed bet
+     * Only callable by deployed BetCOFI contracts
+     * Emits ResolutionRequested so external services only need to monitor the factory
+     */
+    function forwardResolutionRequest() external {
+        require(deployedBets[msg.sender], "Not a deployed bet");
+
+        BetCOFI bet = BetCOFI(msg.sender);
+        address creator = bet.creator();
+
+        emit ResolutionRequested(msg.sender, creator, block.timestamp);
     }
 
     /**
@@ -71,23 +111,17 @@ contract BetFactoryCOFI {
     ) external returns (address) {
         // Deploy new BetCOFI contract
         BetCOFI bet = new BetCOFI(
-            msg.sender,      // creator = transaction sender
+            msg.sender,         // creator = transaction sender
             title,
             description,
             sideAName,
             sideBName,
             endDate,
-            house,           // house = factory deployer
-            usdcToken,       // USDC address from factory
-            address(this)    // factory = this contract (also owner for OApp)
+            usdcToken,          // USDC token address
+            address(this)       // factory = trusted gatekeeper
         );
 
         address betAddress = address(bet);
-
-        // Configure LayerZero peer for the new bet (Base Sepolia loopback)
-        // Factory is owner of bet, so it can call setPeer
-        bytes32 oraclePeer = bytes32(uint256(uint160(oracleAddress)));
-        bet.setPeer(40245, oraclePeer);  // 40245 = Base Sepolia EID
 
         allBets.push(betAddress);
         deployedBets[betAddress] = true;
