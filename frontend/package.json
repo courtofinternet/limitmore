@@ -9,9 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^1.73.0",
     "next": "16.0.8",
     "react": "19.2.1",
-    "react-dom": "19.2.1"
+    "react-dom": "19.2.1",
+    "wagmi": "^2.12.7"
   },
   "devDependencies": {
     "@types/node": "^20",

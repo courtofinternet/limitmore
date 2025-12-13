@@ -2,25 +2,44 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './LandingView.module.css';
 import ChartSection from '../SharedMarket/ChartSection';
-import { MOCK_MARKETS } from '../../../data/markets';
+import { MarketData } from '../../../data/markets';
+import { fetchAllMarkets } from '../../../lib/onchain/reads';
 
 const LandingView: React.FC = () => {
     const router = useRouter();
-    // Default to Bitcoin (ID 1) or first market
-    const [selectedMarketId, setSelectedMarketId] = React.useState<number>(1);
+    const [selectedMarketId, setSelectedMarketId] = React.useState<number | null>(null);
     const [navStartIndex, setNavStartIndex] = React.useState<number>(0);
+    const [markets, setMarkets] = React.useState<MarketData[]>([]);
+    const [loading, setLoading] = React.useState<boolean>(true);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            setLoading(true);
+            try {
+                const data = await fetchAllMarkets();
+                if (!cancelled) {
+                    setMarkets(data);
+                    setSelectedMarketId(data[0]?.id ?? null);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Get selected market data
-    const selectedMarket = MOCK_MARKETS.find(m => m.id === selectedMarketId) || MOCK_MARKETS[0];
+    const selectedMarket = markets.find(m => m.id === selectedMarketId) || markets[0];
 
     // Define the full list for navigation
     const allNavItems = [
-        MOCK_MARKETS.find(m => m.identifier === 'NASDAQ:GOOG'),
-        MOCK_MARKETS.find(m => m.identifier === 'bitcoin'),
-        MOCK_MARKETS.find(m => m.identifier === 'ethereum'),
-        MOCK_MARKETS.find(m => m.identifier === 'monad'),
-        { id: -1, ticker: 'More Markets', identifier: 'more', type: 'other' } as any
-    ].filter(Boolean) as typeof MOCK_MARKETS;
+        ...markets.slice(0, 4),
+        { id: -1, ticker: 'More Markets', identifier: 'more', type: 'other' } as MarketData
+    ].filter(Boolean);
 
     // Derived view for the carousel (show 3 items)
     const CAROUSEL_SIZE = 3;
@@ -43,12 +62,18 @@ const LandingView: React.FC = () => {
     };
 
     // Helper to format price
-    const displayPrice = selectedMarket.type === 'crypto' ? "$92,613.00" : "$318.11";
+    const displayPrice = selectedMarket?.type === 'crypto' ? "$92,613.00" : "$318.11";
 
     return (
         <div className={styles.container}>
             {/* Focus Market Card */}
             <div className={styles.marketFocusCard}>
+                {loading || !selectedMarket ? (
+                    <div className={styles.skeletonCard}>
+                        <div className={styles.shimmer}></div>
+                    </div>
+                ) : (
+                    <>
                 <div className={styles.marketHeader}>
                     <div className={styles.marketTabs}>
                         {/* Empty left side */}
@@ -84,7 +109,7 @@ const LandingView: React.FC = () => {
                                             </div>
                                         );
                                     }
-                                    return (
+                                    return market ? (
                                         <div
                                             key={market.id}
                                             className={styles.navItem}
@@ -104,7 +129,7 @@ const LandingView: React.FC = () => {
                                             }}></span>
                                             {market.ticker}
                                         </div>
-                                    );
+                                    ) : null;
                                 })}
                             </div>
                         </div>
@@ -201,7 +226,8 @@ const LandingView: React.FC = () => {
                         Resolution is decentralised
                     </div>
                 </div>
-
+                </>
+                )}
             </div>
         </div>
     );

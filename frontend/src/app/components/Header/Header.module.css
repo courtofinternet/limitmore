@@ -52,6 +52,28 @@
     gap: var(--spacing-md);
 }
 
+.walletButton {
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    color: var(--foreground);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.walletButton:hover:not(:disabled) {
+    background: #f4f4f5;
+    border-color: var(--text-secondary);
+}
+
+.walletButton:disabled {
+    opacity: 0.7;
+    cursor: default;
+}
+
 .depositBtn {
     background-color: #3b82f6;
     /* Blue deposit button as seen in image 2 top right */

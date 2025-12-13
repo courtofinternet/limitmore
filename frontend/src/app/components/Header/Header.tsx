@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './Header.module.css';
+import { useWallet } from '../../providers/WalletProvider';
 
 interface HeaderProps {
     onNavigate: (page: 'landing' | 'markets') => void;
@@ -7,6 +8,12 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
+    const { isConnected, walletAddress, isConnecting, connect, disconnect } = useWallet();
+
+    const shortAddress = walletAddress
+        ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
+        : '';
+
     return (
         <header className={styles.header}>
             <div className={styles.left}>
@@ -28,7 +35,15 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                 </nav>
             </div>
             <div className={styles.right}>
-                {/* Right side items removed as per request */}
+                {isConnected ? (
+                    <button className={styles.walletButton} onClick={disconnect}>
+                        {shortAddress}
+                    </button>
+                ) : (
+                    <button className={styles.walletButton} onClick={connect} disabled={isConnecting}>
+                        {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                    </button>
+                )}
             </div>
         </header>
     );
