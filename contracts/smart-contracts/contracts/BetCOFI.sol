@@ -44,9 +44,9 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     uint256 public immutable endDate;
     address public immutable factory;
     IERC20 public immutable token; // USDC token contract
-    ResolutionType public immutable resolutionType; // Type of resolution needed
+    ResolutionType public immutable resolutionType; 
+    bytes public resolutionData; 
 
-    // Resolution timeout for cancelBet()
     uint256 private constant RESOLUTION_TIMEOUT = 7 days;
 
     // Bet state
@@ -83,6 +83,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
      * @param _token Address of USDC token contract
      * @param _factory Address of factory contract (trusted gatekeeper)
      * @param _resolutionType Type of resolution (CRYPTO, STOCKS, NEWS)
+     * @param _resolutionData ABI-encoded type-specific parameters
      */
     constructor(
         address _creator,
@@ -93,7 +94,8 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         uint256 _endDate,
         address _token,
         address _factory,
-        ResolutionType _resolutionType
+        ResolutionType _resolutionType,
+        bytes memory _resolutionData
     ) Ownable(_factory) {
         require(_creator != address(0), "Invalid creator address");
         require(_token != address(0), "Invalid token address");
@@ -112,6 +114,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         factory = _factory;
         token = IERC20(_token);
         resolutionType = _resolutionType;
+        resolutionData = _resolutionData;
         status = BetStatus.ACTIVE;
     }
 

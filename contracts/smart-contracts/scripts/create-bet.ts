@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, AbiCoder } from "hardhat";
 
 // Resolution types matching BetCOFI.ResolutionType enum
 const ResolutionType = {
@@ -6,6 +6,34 @@ const ResolutionType = {
   STOCKS: 1,
   NEWS: 2,
 } as const;
+
+// Helper to encode resolution data based on type
+function encodeResolutionData(resolutionType: number): string {
+  const abiCoder = AbiCoder.defaultAbiCoder();
+
+  switch (resolutionType) {
+    case ResolutionType.CRYPTO:
+      // CRYPTO: (tokenSymbol, tokenName) - for CoinMarketCap lookup
+      const tokenSymbol = process.env.TOKEN_SYMBOL || "BTC";
+      const tokenName = process.env.TOKEN_NAME || "bitcoin";
+      return abiCoder.encode(["string", "string"], [tokenSymbol, tokenName]);
+
+    case ResolutionType.STOCKS:
+      // STOCKS: (stockSymbol, companyName) - for stock price lookup
+      const stockSymbol = process.env.STOCK_SYMBOL || "AAPL";
+      const companyName = process.env.COMPANY_NAME || "apple";
+      return abiCoder.encode(["string", "string"], [stockSymbol, companyName]);
+
+    case ResolutionType.NEWS:
+      // NEWS: (newsSource, keywords) - for news resolution
+      const newsSource = process.env.NEWS_SOURCE || "";
+      const keywords = process.env.NEWS_KEYWORDS || "";
+      return abiCoder.encode(["string", "string"], [newsSource, keywords]);
+
+    default:
+      return "0x";
+  }
+}
 
 async function main() {
   console.log("Creating a new bet via BetFactoryCOFI...\n");
@@ -21,6 +49,10 @@ async function main() {
   }
 
   // Bet parameters - customize these
+  const resolutionType = process.env.RESOLUTION_TYPE
+    ? parseInt(process.env.RESOLUTION_TYPE)
+    : ResolutionType.CRYPTO;
+
   const betParams = {
     title: process.env.BET_TITLE || "Will BTC reach $150k by end of 2025?",
     resolutionCriteria: process.env.RESOLUTION_CRITERIA || "This bet resolves to YES if BTC price reaches $150,000 USD at any point before the end date.",
@@ -30,9 +62,8 @@ async function main() {
     endDate: process.env.END_DATE
       ? parseInt(process.env.END_DATE)
       : Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60),
-    resolutionType: process.env.RESOLUTION_TYPE
-      ? parseInt(process.env.RESOLUTION_TYPE)
-      : ResolutionType.CRYPTO,
+    resolutionType,
+    resolutionData: encodeResolutionData(resolutionType),
   };
 
   console.log("\nBet Configuration:");
@@ -43,6 +74,7 @@ async function main() {
   console.log(`  Side B: ${betParams.sideBName}`);
   console.log(`  End Date: ${new Date(betParams.endDate * 1000).toISOString()}`);
   console.log(`  Resolution Type: ${Object.keys(ResolutionType)[betParams.resolutionType]} (${betParams.resolutionType})`);
+  console.log(`  Resolution Data: ${betParams.resolutionData}`);
 
   // Get the factory contract
   const factory = await ethers.getContractAt("BetFactoryCOFI", factoryAddress);
@@ -55,7 +87,8 @@ async function main() {
     betParams.sideAName,
     betParams.sideBName,
     betParams.endDate,
-    betParams.resolutionType
+    betParams.resolutionType,
+    betParams.resolutionData
   );
 
   console.log(`Transaction sent: ${tx.hash}`);

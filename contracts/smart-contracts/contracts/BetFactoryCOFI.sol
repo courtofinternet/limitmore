@@ -33,7 +33,7 @@ contract BetFactoryCOFI is Ownable {
 
     event OracleResolutionReceived(address indexed betContract, uint32 sourceChainId);
 
-    event ResolutionRequested(address indexed betContract, address indexed creator, uint8 resolutionType, uint256 timestamp);
+    event ResolutionRequested(address indexed betContract, address indexed creator, uint8 resolutionType, bytes resolutionData, uint256 timestamp);
 
     event BridgeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
 
@@ -114,8 +114,9 @@ contract BetFactoryCOFI is Ownable {
 
         BetCOFI bet = BetCOFI(msg.sender);
         address creator = bet.creator();
+        bytes memory data = bet.resolutionData();
 
-        emit ResolutionRequested(msg.sender, creator, _resolutionType, block.timestamp);
+        emit ResolutionRequested(msg.sender, creator, _resolutionType, data, block.timestamp);
     }
 
     /**
@@ -126,6 +127,7 @@ contract BetFactoryCOFI is Ownable {
      * @param sideBName Name of side B
      * @param endDate Timestamp when betting closes
      * @param resolutionType Type of resolution (0=CRYPTO, 1=STOCKS, 2=NEWS)
+     * @param resolutionData ABI-encoded type-specific params (e.g., tokenSymbol, tokenName for CRYPTO)
      * @return Address of newly deployed BetCOFI contract
      */
     function createBet(
@@ -134,7 +136,8 @@ contract BetFactoryCOFI is Ownable {
         string memory sideAName,
         string memory sideBName,
         uint256 endDate,
-        uint8 resolutionType
+        uint8 resolutionType,
+        bytes memory resolutionData
     ) external returns (address) {
         require(canCreateBet(msg.sender), "Not authorized to create bets");
         require(resolutionType <= 2, "Invalid resolution type");
@@ -149,7 +152,8 @@ contract BetFactoryCOFI is Ownable {
             endDate,
             usdcToken,          // USDC token address
             address(this),      // factory = trusted gatekeeper
-            BetCOFI.ResolutionType(resolutionType)
+            BetCOFI.ResolutionType(resolutionType),
+            resolutionData
         );
 
         address betAddress = address(bet);
