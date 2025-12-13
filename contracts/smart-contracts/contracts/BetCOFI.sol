@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface IBetFactoryCOFI {
     function forwardResolutionRequest(uint8 resolutionType) external;
+    function notifyStatusChange(uint8 oldStatus, uint8 newStatus) external;
 }
 
 /// @title BetCOFI - Binary prediction market contract
@@ -115,9 +116,11 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         require(block.timestamp >= endDate, "Cannot resolve before end date");
         require(status == BetStatus.ACTIVE, "Bet not active");
 
+        uint8 oldStatus = uint8(status);
         status = BetStatus.RESOLVING;
         resolutionRequestedAt = block.timestamp;
 
+        IBetFactoryCOFI(factory).notifyStatusChange(oldStatus, uint8(status));
         IBetFactoryCOFI(factory).forwardResolutionRequest(uint8(resolutionType));
     }
 
@@ -131,6 +134,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         require(betAddress == address(this), "Response for wrong bet");
         require(status == BetStatus.RESOLVING, "Not awaiting resolution");
 
+        uint8 oldStatus = uint8(status);
         isResolved = true;
 
         if (isUndetermined ||
@@ -144,6 +148,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
             emit BetResolved(sideAWins, block.timestamp);
         }
 
+        IBetFactoryCOFI(factory).notifyStatusChange(oldStatus, uint8(status));
         emit ResolutionReceived(sideAWins);
     }
 
@@ -184,9 +189,11 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         require(status == BetStatus.RESOLVING, "Can only cancel while resolving");
         require(block.timestamp >= resolutionRequestedAt + RESOLUTION_TIMEOUT, "Timeout not reached");
 
+        uint8 oldStatus = uint8(status);
         isResolved = true;
         status = BetStatus.UNDETERMINED;
 
+        IBetFactoryCOFI(factory).notifyStatusChange(oldStatus, uint8(status));
         emit BetUndetermined(block.timestamp);
     }
 

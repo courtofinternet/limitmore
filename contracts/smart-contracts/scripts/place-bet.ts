@@ -1,6 +1,7 @@
 import { ethers } from "hardhat";
 
-const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
+// Base Sepolia USDC (default fallback)
+const USDC_ADDRESS = process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
 async function main() {
   const factoryAddress = process.env.FACTORY_ADDRESS;

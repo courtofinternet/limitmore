@@ -30,7 +30,7 @@ const ORACLE_CONTRACTS: Record<number, string> = {
 };
 
 const BET_FACTORY_ABI = [
-  "event ResolutionRequested(address indexed betContract, address indexed creator, uint8 resolutionType, bytes resolutionData, uint256 timestamp)",
+  "event ResolutionRequested(address indexed betContract, address indexed creator, uint8 resolutionType, string title, string sideAName, string sideBName, bytes resolutionData, uint256 timestamp)",
 ];
 
 function decodeResolutionData(data: string): [string, string] | null {
@@ -91,23 +91,29 @@ export class EvmToGenLayerRelay {
   private async deployOracle(
     betContract: string,
     resolutionType: number,
+    title: string,
+    sideAName: string,
+    sideBName: string,
     resolutionData: string
   ): Promise<string | null> {
     try {
-      // Decode resolution data
+      // Decode resolution data to get token/stock symbol and name
       const decoded = decodeResolutionData(resolutionData);
       if (!decoded) {
         console.error("[EVM→GL] Failed to decode resolution data");
         return null;
       }
-      const [param1, param2] = decoded;
+      const [tokenSymbol, tokenName] = decoded;
 
-      // Constructor args: (market_id, param1, param2)
-      const args = [betContract, param1, param2];
+      // Constructor args: (market_id, token_symbol, token_name, market_title, side_a, side_b)
+      const args = [betContract, tokenSymbol, tokenName, title, sideAName, sideBName];
 
       console.log(`[EVM→GL] Deploying oracle...`);
       console.log(`  Contract: ${ORACLE_CONTRACTS[resolutionType]}`);
-      console.log(`  Args: [${args.join(", ")}]`);
+      console.log(`  Market ID: ${betContract}`);
+      console.log(`  Token: ${tokenSymbol} (${tokenName})`);
+      console.log(`  Title: ${title}`);
+      console.log(`  Sides: "${sideAName}" vs "${sideBName}"`);
 
       // Load contract code
       const code = this.loadOracleCode(resolutionType);
@@ -171,7 +177,7 @@ export class EvmToGenLayerRelay {
         }
 
         const log = event as ethers.EventLog;
-        const [betContract, creator, resolutionType, resolutionData, eventTimestamp] = log.args;
+        const [betContract, creator, resolutionType, title, sideAName, sideBName, resolutionData, eventTimestamp] = log.args;
 
         // Mark as processed BEFORE deploying (deployment is slow)
         this.processedEvents.add(eventId);
@@ -181,6 +187,8 @@ export class EvmToGenLayerRelay {
         console.log(`  Bet: ${betContract}`);
         console.log(`  Creator: ${creator}`);
         console.log(`  Type: ${RESOLUTION_TYPES[Number(resolutionType)]} (${resolutionType})`);
+        console.log(`  Title: ${title}`);
+        console.log(`  Sides: "${sideAName}" vs "${sideBName}"`);
         console.log(`  Data: ${decoded ? `[${decoded.join(", ")}]` : "(empty)"}`);
         console.log(`  TX: ${event.transactionHash}`);
 
@@ -188,6 +196,9 @@ export class EvmToGenLayerRelay {
         await this.deployOracle(
           betContract as string,
           Number(resolutionType),
+          title as string,
+          sideAName as string,
+          sideBName as string,
           resolutionData as string
         );
       }

@@ -55,14 +55,27 @@ async function main() {
     console.log();
   });
 
-  // ResolutionRequested - THE MAIN ONE
-  factory.on("ResolutionRequested", (betContract, creator, resolutionType, resolutionData, eventTimestamp) => {
+  // ResolutionRequested - THE MAIN ONE (expanded format)
+  factory.on("ResolutionRequested", (betContract, creator, resolutionType, title, sideAName, sideBName, resolutionData, eventTimestamp) => {
     console.log(`[${timestamp()}] *** ResolutionRequested ***`);
     console.log(`  Bet: ${betContract}`);
     console.log(`  Creator: ${creator}`);
     console.log(`  Resolution Type: ${RESOLUTION_TYPES[Number(resolutionType)]} (${resolutionType})`);
+    console.log(`  Title: ${title}`);
+    console.log(`  Side A: ${sideAName}`);
+    console.log(`  Side B: ${sideBName}`);
     console.log(`  Resolution Data: ${decodeResolutionData(resolutionData)}`);
     console.log(`  Timestamp: ${new Date(Number(eventTimestamp) * 1000).toISOString()}`);
+    console.log();
+  });
+
+  // BetStatusChanged
+  factory.on("BetStatusChanged", (betContract, oldStatus, newStatus) => {
+    const STATUS_NAMES = ["ACTIVE", "RESOLVING", "RESOLVED", "UNDETERMINED"];
+    console.log(`[${timestamp()}] BetStatusChanged`);
+    console.log(`  Bet: ${betContract}`);
+    console.log(`  Old Status: ${STATUS_NAMES[Number(oldStatus)]}`);
+    console.log(`  New Status: ${STATUS_NAMES[Number(newStatus)]}`);
     console.log();
   });
 

@@ -70,14 +70,18 @@ async function main() {
       data: resolutionEvent.data
     });
 
+    // Event format: (betContract, creator, resolutionType, title, sideAName, sideBName, resolutionData, timestamp)
     console.log(`\n========== ResolutionRequested Event ==========`);
     console.log(`  Bet Contract: ${parsed?.args[0]}`);
     console.log(`  Creator: ${parsed?.args[1]}`);
     console.log(`  Resolution Type: ${parsed?.args[2]} (${["CRYPTO", "STOCKS", "NEWS"][Number(parsed?.args[2])]})`);
-    console.log(`  Timestamp: ${parsed?.args[4]}`);
+    console.log(`  Title: ${parsed?.args[3]}`);
+    console.log(`  Side A: ${parsed?.args[4]}`);
+    console.log(`  Side B: ${parsed?.args[5]}`);
+    console.log(`  Timestamp: ${parsed?.args[7]}`);
 
     // Decode resolution data
-    const resolutionData = parsed?.args[3];
+    const resolutionData = parsed?.args[6];
     console.log(`  Resolution Data (raw): ${resolutionData}`);
 
     if (resolutionData && resolutionData !== "0x") {
@@ -85,8 +89,8 @@ async function main() {
       try {
         const [param1, param2] = abiCoder.decode(["string", "string"], resolutionData);
         console.log(`  Resolution Data (decoded):`);
-        console.log(`    - Param 1: ${param1}`);
-        console.log(`    - Param 2: ${param2}`);
+        console.log(`    - Token/Stock Symbol: ${param1}`);
+        console.log(`    - Token/Company Name: ${param2}`);
       } catch (e) {
         console.log(`  (Could not decode resolution data)`);
       }
