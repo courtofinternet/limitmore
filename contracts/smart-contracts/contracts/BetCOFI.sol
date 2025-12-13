@@ -37,7 +37,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     // Bet metadata
     address public immutable creator;
     string public title;
-    string public description;
+    string public resolutionCriteria;
     string public sideAName;
     string public sideBName;
     uint256 public immutable creationDate;
@@ -76,7 +76,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
      * @dev Constructor called by factory when deploying new bet
      * @param _creator Address of bet creator (can resolve the bet)
      * @param _title Title of the bet
-     * @param _description Detailed description
+     * @param _resolutionCriteria Resolution criteria for determining outcome
      * @param _sideAName Name/description of side A
      * @param _sideBName Name/description of side B
      * @param _endDate Timestamp when betting closes
@@ -87,7 +87,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     constructor(
         address _creator,
         string memory _title,
-        string memory _description,
+        string memory _resolutionCriteria,
         string memory _sideAName,
         string memory _sideBName,
         uint256 _endDate,
@@ -104,7 +104,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
 
         creator = _creator;
         title = _title;
-        description = _description;
+        resolutionCriteria = _resolutionCriteria;
         sideAName = _sideAName;
         sideBName = _sideBName;
         creationDate = block.timestamp;
@@ -267,7 +267,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     function getInfo() external view returns (
         address _creator,
         string memory _title,
-        string memory _description,
+        string memory _resolutionCriteria,
         string memory _sideAName,
         string memory _sideBName,
         uint256 _creationDate,
@@ -280,7 +280,7 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         return (
             creator,
             title,
-            description,
+            resolutionCriteria,
             sideAName,
             sideBName,
             creationDate,

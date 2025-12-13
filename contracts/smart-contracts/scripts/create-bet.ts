@@ -23,7 +23,7 @@ async function main() {
   // Bet parameters - customize these
   const betParams = {
     title: process.env.BET_TITLE || "Will BTC reach $150k by end of 2025?",
-    description: process.env.BET_DESCRIPTION || "This bet resolves to YES if BTC price reaches $150,000 USD at any point before the end date.",
+    resolutionCriteria: process.env.RESOLUTION_CRITERIA || "This bet resolves to YES if BTC price reaches $150,000 USD at any point before the end date.",
     sideAName: process.env.SIDE_A_NAME || "Yes",
     sideBName: process.env.SIDE_B_NAME || "No",
     // End date: 7 days from now by default
@@ -38,7 +38,7 @@ async function main() {
   console.log("\nBet Configuration:");
   console.log(`  Factory: ${factoryAddress}`);
   console.log(`  Title: ${betParams.title}`);
-  console.log(`  Description: ${betParams.description}`);
+  console.log(`  Resolution Criteria: ${betParams.resolutionCriteria}`);
   console.log(`  Side A: ${betParams.sideAName}`);
   console.log(`  Side B: ${betParams.sideBName}`);
   console.log(`  End Date: ${new Date(betParams.endDate * 1000).toISOString()}`);
@@ -51,7 +51,7 @@ async function main() {
   console.log("\nCreating bet...");
   const tx = await factory.createBet(
     betParams.title,
-    betParams.description,
+    betParams.resolutionCriteria,
     betParams.sideAName,
     betParams.sideBName,
     betParams.endDate,

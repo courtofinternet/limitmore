@@ -23,6 +23,9 @@ contract BetFactoryCOFI is Ownable {
     // Registry to verify legitimate bets
     mapping(address => bool) public deployedBets;
 
+    // Approved bet creators (owner is always approved)
+    mapping(address => bool) public approvedCreators;
+
     // Events
     event BetCreated(address indexed betAddress,address indexed creator,string title,uint256 endDate );
 
@@ -34,6 +37,8 @@ contract BetFactoryCOFI is Ownable {
 
     event BridgeReceiverUpdated(address indexed oldReceiver, address indexed newReceiver);
 
+    event CreatorApprovalUpdated(address indexed creator, bool approved);
+
     /**
      * @dev Constructor - sets USDC configuration
      * @param _usdcToken Address of USDC token contract
@@ -41,6 +46,25 @@ contract BetFactoryCOFI is Ownable {
     constructor(address _usdcToken) Ownable(msg.sender) {
         require(_usdcToken != address(0), "Invalid USDC address");
         usdcToken = _usdcToken;
+    }
+
+    /**
+     * @dev Set approval status for a bet creator (only owner)
+     * @param _creator Address to approve/revoke
+     * @param _approved True to approve, false to revoke
+     */
+    function setCreatorApproval(address _creator, bool _approved) external onlyOwner {
+        approvedCreators[_creator] = _approved;
+        emit CreatorApprovalUpdated(_creator, _approved);
+    }
+
+    /**
+     * @dev Check if an address can create bets
+     * @param _creator Address to check
+     * @return True if owner or approved creator
+     */
+    function canCreateBet(address _creator) public view returns (bool) {
+        return _creator == owner() || approvedCreators[_creator];
     }
 
     /**
@@ -97,7 +121,7 @@ contract BetFactoryCOFI is Ownable {
     /**
      * @dev Create a new bet
      * @param title Bet title
-     * @param description Bet description
+     * @param resolutionCriteria Resolution criteria for the bet
      * @param sideAName Name of side A
      * @param sideBName Name of side B
      * @param endDate Timestamp when betting closes
@@ -106,19 +130,20 @@ contract BetFactoryCOFI is Ownable {
      */
     function createBet(
         string memory title,
-        string memory description,
+        string memory resolutionCriteria,
         string memory sideAName,
         string memory sideBName,
         uint256 endDate,
         uint8 resolutionType
     ) external returns (address) {
+        require(canCreateBet(msg.sender), "Not authorized to create bets");
         require(resolutionType <= 2, "Invalid resolution type");
 
         // Deploy new BetCOFI contract
         BetCOFI bet = new BetCOFI(
             msg.sender,         // creator = transaction sender
             title,
-            description,
+            resolutionCriteria,
             sideAName,
             sideBName,
             endDate,
