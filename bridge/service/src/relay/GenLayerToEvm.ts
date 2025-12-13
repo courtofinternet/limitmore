@@ -36,6 +36,7 @@ export class GenLayerToEvmRelay {
   private bridgeForwarder: ethers.Contract;
   private genLayerClient: any;
   private usedHashes: Set<string>;
+  private initialized: boolean;
 
   constructor() {
     this.provider = new ethers.JsonRpcProvider(getForwarderNetworkRpcUrl());
@@ -61,6 +62,7 @@ export class GenLayerToEvmRelay {
     });
 
     this.usedHashes = new Set<string>();
+    this.initialized = false;
   }
 
   private async getPendingMessages(): Promise<string[]> {
@@ -166,7 +168,18 @@ export class GenLayerToEvmRelay {
       console.log("[GL→EVM] Starting sync...");
 
       const hashes = await this.getPendingMessages();
-      console.log(`[GL→EVM] Found ${hashes.length} messages`);
+
+      // On first run, mark all existing hashes as seen (don't relay historical)
+      if (!this.initialized) {
+        this.initialized = true;
+        for (const hash of hashes) {
+          this.usedHashes.add(hash);
+        }
+        console.log(`[GL→EVM] Initialized with ${hashes.length} existing messages (skipped)`);
+        return;
+      }
+
+      console.log(`[GL→EVM] Found ${hashes.length} new messages`);
 
       for (const hash of hashes) {
         this.usedHashes.add(hash);

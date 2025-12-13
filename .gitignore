@@ -56,6 +56,6 @@ typechain/
 
 # Security / Environment
 .env
-.env*
+.env.local
 *.pem
 wallet.txt

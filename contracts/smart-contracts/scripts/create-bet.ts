@@ -1,4 +1,5 @@
-import { ethers, AbiCoder } from "hardhat";
+import { ethers } from "hardhat";
+import { AbiCoder } from "ethers";
 
 // Resolution types matching BetCOFI.ResolutionType enum
 const ResolutionType = {

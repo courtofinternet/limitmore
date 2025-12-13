@@ -41,10 +41,6 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@layerzerolabs/lz-evm-messagelib-v2": "^3.0.145",
-    "@layerzerolabs/lz-evm-oapp-v2": "^3.0.145",
-    "@layerzerolabs/lz-evm-protocol-v2": "^3.0.145",
-    "@openzeppelin/contracts": "^5.4.0",
-    "solidity-bytes-utils": "^0.8.4"
+    "@openzeppelin/contracts": "^5.4.0"
   }
 }

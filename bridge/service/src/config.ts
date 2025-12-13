@@ -11,6 +11,10 @@ interface Config {
   genlayerRpcUrl?: string;
   privateKey?: string;
   bridgeSyncInterval?: string;
+  // EVM -> GenLayer direction
+  baseSepoliaRpcUrl?: string;
+  betFactoryAddress?: string;
+  oracleContractsPath?: string;
 }
 
 function loadConfig(): Config {
@@ -21,6 +25,10 @@ function loadConfig(): Config {
     GENLAYER_RPC_URL,
     PRIVATE_KEY,
     BRIDGE_SYNC_INTERVAL = '*/5 * * * *', // Default to every 5 minutes
+    // EVM -> GenLayer
+    BASE_SEPOLIA_RPC_URL,
+    BET_FACTORY_ADDRESS,
+    ORACLE_CONTRACTS_PATH,
   } = process.env;
 
   try {
@@ -31,6 +39,10 @@ function loadConfig(): Config {
       genlayerRpcUrl: GENLAYER_RPC_URL,
       privateKey: PRIVATE_KEY,
       bridgeSyncInterval: BRIDGE_SYNC_INTERVAL,
+      // EVM -> GenLayer
+      baseSepoliaRpcUrl: BASE_SEPOLIA_RPC_URL,
+      betFactoryAddress: BET_FACTORY_ADDRESS,
+      oracleContractsPath: ORACLE_CONTRACTS_PATH,
     };
   } catch (error) {
     console.warn('Failed to load config:', error);
@@ -72,6 +84,19 @@ export function getPrivateKey(): string {
 
 export function getBridgeSyncInterval(): string {
   return getRequiredConfig('bridgeSyncInterval', 'BRIDGE_SYNC_INTERVAL');
+}
+
+// EVM -> GenLayer getters
+export function getBaseSepoliaRpcUrl(): string {
+  return getRequiredConfig('baseSepoliaRpcUrl', 'BASE_SEPOLIA_RPC_URL');
+}
+
+export function getBetFactoryAddress(): string {
+  return getRequiredConfig('betFactoryAddress', 'BET_FACTORY_ADDRESS');
+}
+
+export function getOracleContractsPath(): string {
+  return getRequiredConfig('oracleContractsPath', 'ORACLE_CONTRACTS_PATH');
 }
 
 // Optional config getter (returns undefined instead of throwing)
