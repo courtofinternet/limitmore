@@ -18,15 +18,17 @@ import {
   getBetFactoryAddress,
   getGenlayerRpcUrl,
   getPrivateKey,
-  getOracleContractsPath,
+  getBridgeSenderAddress,
 } from "../config.js";
 
 const RESOLUTION_TYPES = ["CRYPTO", "STOCKS", "NEWS"];
+const BASE_SEPOLIA_LZ_EID = 40245;
 
+// Oracle contracts in local intelligent-oracles directory
 const ORACLE_CONTRACTS: Record<number, string> = {
-  0: "crypto_pm.py",  // CRYPTO
-  1: "stock_pm.py",   // STOCKS
-  2: "news_pm.py",    // NEWS
+  0: "crypto_prediction_market.py",  // CRYPTO
+  1: "stock_prediction_market.py",   // STOCKS
+  2: "news_pm.py",                   // NEWS (not yet implemented)
 };
 
 const BET_FACTORY_ABI = [
@@ -84,7 +86,8 @@ export class EvmToGenLayerRelay {
     if (!filename) {
       throw new Error(`Unknown resolution type: ${resolutionType}`);
     }
-    const contractPath = path.join(getOracleContractsPath(), filename);
+    // Load from local intelligent-oracles directory (relative to this file's location)
+    const contractPath = path.join(import.meta.dirname, "../../intelligent-oracles", filename);
     return readFileSync(contractPath, "utf-8");
   }
 
@@ -105,8 +108,17 @@ export class EvmToGenLayerRelay {
       }
       const [tokenSymbol, tokenName] = decoded;
 
-      // Constructor args: (market_id, token_symbol, token_name, market_title, side_a, side_b)
-      const args = [betContract, tokenSymbol, tokenName, title, sideAName, sideBName];
+      // Bridge config for auto-relay back to EVM
+      const bridgeSender = getBridgeSenderAddress();
+      const targetChainEid = BASE_SEPOLIA_LZ_EID;
+      const targetContract = getBetFactoryAddress();
+
+      // Constructor args: (market_id, token_symbol, token_name, market_title, side_a, side_b,
+      //                    bridge_sender, target_chain_eid, target_contract)
+      const args = [
+        betContract, tokenSymbol, tokenName, title, sideAName, sideBName,
+        bridgeSender, targetChainEid, targetContract
+      ];
 
       console.log(`[EVM→GL] Deploying oracle...`);
       console.log(`  Contract: ${ORACLE_CONTRACTS[resolutionType]}`);
@@ -114,6 +126,7 @@ export class EvmToGenLayerRelay {
       console.log(`  Token: ${tokenSymbol} (${tokenName})`);
       console.log(`  Title: ${title}`);
       console.log(`  Sides: "${sideAName}" vs "${sideBName}"`);
+      console.log(`  Bridge: ${bridgeSender} → EID ${targetChainEid} → ${targetContract}`);
 
       // Load contract code
       const code = this.loadOracleCode(resolutionType);

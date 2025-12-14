@@ -1,5 +1,9 @@
 # { "Depends": "py-genlayer:latest" }
 from genlayer import *
+from datetime import datetime
+
+genvm_eth = gl.evm
+
 
 class StockPredictionMarket(gl.Contract):
     market_id: str
@@ -12,10 +16,22 @@ class StockPredictionMarket(gl.Contract):
     winning_side: str
     resolution_url: str
     resolved_at: str
+    # Bridge config
+    bridge_sender: Address
+    target_chain_eid: u256
+    target_contract: str
 
-    def __init__(self, market_id: str, stock_symbol: str, company_name: str, market_title: str, side_a: str, side_b: str):
+    def __init__(self, market_id: str, stock_symbol: str, company_name: str, market_title: str, side_a: str, side_b: str,
+                 bridge_sender: str, target_chain_eid: int, target_contract: str):
         if not market_id or not stock_symbol or not company_name or not market_title or not side_a or not side_b:
             raise gl.vm.UserError("All parameters are required: market_id, stock_symbol, company_name, market_title, side_a, side_b")
+        if not bridge_sender or not target_contract:
+            raise gl.vm.UserError("Bridge config required: bridge_sender, target_chain_eid, target_contract")
+
+        # Store bridge config
+        self.bridge_sender = Address(bridge_sender)
+        self.target_chain_eid = u256(target_chain_eid)
+        self.target_contract = target_contract
 
         self.market_id = market_id
         self.stock_symbol = stock_symbol.upper()
@@ -62,9 +78,11 @@ class StockPredictionMarket(gl.Contract):
         # All validators must agree on the exact result
         json_result = gl.eq_principle.strict_eq(fetch_price_and_winner_task)
 
-        # Parse JSON response
+        # Parse JSON response (strip markdown code blocks if present)
         import json
-        result_data = json.loads(json_result)
+        import re
+        clean_result = re.sub(r'^```(?:json)?\s*|\s*```$', '', json_result.strip())
+        result_data = json.loads(clean_result)
 
         # Extract price and winner from JSON
         price_value = result_data["price"]
@@ -74,44 +92,44 @@ class StockPredictionMarket(gl.Contract):
         self.resolved_price = u256(int(price_value * 100))
         self.winning_side = winner_value
 
-    @gl.public.view
-    def get_resolved_price(self) -> u256:
-        """Returns the resolved price in cents (multiply by 100)"""
-        return self.resolved_price
+        # Send resolution to EVM via bridge
+        self._send_resolution_to_bridge()
 
-    @gl.public.view
-    def get_price_dollars(self) -> str:
-        """Returns the price formatted as dollars"""
-        dollars = self.resolved_price / 100
-        return f"${dollars:.2f}"
+    def _send_resolution_to_bridge(self):
+        """Encode and send resolution result to EVM via BridgeSender."""
+        # Determine if side_a won
+        side_a_wins = (self.winning_side == self.side_a)
+        is_undetermined = False
+        timestamp = int(datetime.now().timestamp())
+        tx_hash = bytes(32)  # Empty hash placeholder
 
-    @gl.public.view
-    def get_stock_symbol(self) -> str:
-        return self.stock_symbol
+        # Step 1: Encode resolution data: (address, bool, bool, uint256, bytes32)
+        resolution_abi = [Address, bool, bool, u256, bytes]
+        resolution_encoder = genvm_eth.MethodEncoder("", resolution_abi, bool)
+        resolution_data = resolution_encoder.encode_call([
+            Address(self.market_id),  # bet address
+            side_a_wins,
+            is_undetermined,
+            u256(timestamp),
+            tx_hash
+        ])[4:]  # Remove method selector
 
-    @gl.public.view
-    def get_company_name(self) -> str:
-        return self.company_name
+        # Step 2: Wrap with target contract address: (address, bytes)
+        # BetFactoryCOFI.processBridgeMessage expects: (address targetContract, bytes data)
+        wrapper_abi = [Address, bytes]
+        wrapper_encoder = genvm_eth.MethodEncoder("", wrapper_abi, bool)
+        message_bytes = wrapper_encoder.encode_call([
+            Address(self.market_id),  # targetContract (the bet address)
+            resolution_data           # the resolution data
+        ])[4:]  # Remove method selector
 
-    @gl.public.view
-    def get_market_id(self) -> str:
-        return self.market_id
-
-    @gl.public.view
-    def get_market_title(self) -> str:
-        return self.market_title
-
-    @gl.public.view
-    def get_side_a(self) -> str:
-        return self.side_a
-
-    @gl.public.view
-    def get_side_b(self) -> str:
-        return self.side_b
-
-    @gl.public.view
-    def get_winning_side(self) -> str:
-        return self.winning_side
+        # Send via BridgeSender
+        bridge = gl.get_contract_at(self.bridge_sender)
+        bridge.emit().send_message(
+            self.target_chain_eid,
+            self.target_contract,
+            message_bytes
+        )
 
     @gl.public.view
     def get_resolution_details(self) -> dict:
