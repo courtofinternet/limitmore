@@ -154,3 +154,15 @@
     transform: translateX(100%);
   }
 }
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  color: #6b7280;
+  font-weight: 600;
+  border: 1px dashed #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+}

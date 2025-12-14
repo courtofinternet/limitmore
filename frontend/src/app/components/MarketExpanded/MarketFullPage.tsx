@@ -5,7 +5,11 @@ import ChartSection from '../SharedMarket/ChartSection';
 import { MarketData, getUserMarketStatus } from '../../../data/markets';
 import { claimRewards } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
+import { useToast } from '../../providers/ToastProvider';
 import ConnectWalletPrompt from '../Wallet/ConnectWalletPrompt';
+import { formatVolume, formatAddress, formatResolutionDate } from '../../../utils/formatters';
+import CopyIcon from '../Shared/CopyIcon';
+import ResolutionRules from '../Shared/ResolutionRules';
 
 interface MarketFullPageProps {
     onBack: () => void;
@@ -17,31 +21,9 @@ interface MarketFullPageProps {
     identifier?: string;
     description?: string;
     resolutionRule?: string;
-    resolutionSource?: string;
     volume?: number;
 }
 
-const formatVolume = (num: number) => {
-    if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M USDC';
-    }
-    if (num >= 1000) {
-        return (num / 1000).toFixed(0) + 'k USDC';
-    }
-    return num.toString() + ' USDC';
-};
-
-const formatResolutionDate = (deadlineSeconds?: number) => {
-    if (!deadlineSeconds) return null;
-    const date = new Date(deadlineSeconds * 1000);
-    return date.toLocaleString(undefined, {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-};
 
 const MarketFullPage: React.FC<MarketFullPageProps> = ({
     onBack,
@@ -53,7 +35,6 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
     identifier: legacyIdentifier = 'bitcoin',
     description: legacyDescription = "",
     resolutionRule: legacyResolutionRule = "Standard Rules",
-    resolutionSource: legacyResolutionSource = "Oracle",
     volume: legacyVolume = 0
 }) => {
     // Use market data or fall back to legacy props
@@ -63,17 +44,17 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
     const identifier = market?.identifier || legacyIdentifier;
     const description = market?.description || legacyDescription;
     const resolutionRule = market?.resolutionRule || legacyResolutionRule;
-    const resolutionSource = market?.resolutionSource || legacyResolutionSource;
     const volume = market?.volume || legacyVolume;
 
     const { isConnected, walletAddress } = useWallet();
+    const { showToast } = useToast();
 
     // Get user status for finalized markets
     const userStatus = market && isConnected && walletAddress ? getUserMarketStatus(market.id, walletAddress) : null;
     const finalPriceText = market?.deadlinePrice
         ? `${market.priceSymbol ?? ''}${market.deadlinePrice.toLocaleString()}`
         : null;
-    const resolutionDate = formatResolutionDate(market?.deadline);
+    const resolutionDate = formatResolutionDate(market?.deadlineDate);
     const handleClaim = async () => {
         if (!market || !isConnected) return;
         await claimRewards(market.contractId as `0x${string}`);
@@ -97,11 +78,11 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
                         <h1 className={styles.title}>{marketTitle}</h1>
 
                         <div className={styles.truthBlock}>
-                            <div className={styles.truthHeader}>Resolution</div>
-                            <div className={styles.truthOutcomeRow}>
-                                <div
-                                    className={`${styles.truthOutcome} ${
-                                        market.resolvedOutcome === 'YES'
+                        <div className={styles.truthHeader}>Resolution</div>
+                        <div className={styles.truthOutcomeRow}>
+                            <div
+                                className={`${styles.truthOutcome} ${
+                                    market.resolvedOutcome === 'YES'
                                             ? styles.truthOutcomeYes
                                             : market.resolvedOutcome === 'NO'
                                                 ? styles.truthOutcomeNo
@@ -112,24 +93,20 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
                                 </div>
                                 <div className={styles.truthValue}>
                                     {finalPriceText ? `At ${finalPriceText}` : 'Value unavailable'}
-                                </div>
                             </div>
-                            <div className={styles.truthMeta}>
-                                <div className={styles.truthMetaItem}>
-                                    <span className={styles.truthMetaLabel}>Condition</span>
-                                    <span className={styles.truthMetaValue}>{description}</span>
-                                </div>
-                                <div className={styles.truthMetaItem}>
-                                    <span className={styles.truthMetaLabel}>Source</span>
-                                    <span className={styles.truthMetaValue}>{resolutionSource}</span>
-                                </div>
-                                {resolutionDate && (
-                                    <div className={styles.truthMetaItem}>
-                                        <span className={styles.truthMetaLabel}>Resolved on</span>
-                                        <span className={styles.truthMetaValue}>{resolutionDate}</span>
-                                    </div>
-                                )}
+                        </div>
+                        <div className={styles.truthMeta}>
+                            <div className={styles.truthMetaItem}>
+                                <span className={styles.truthMetaLabel}>Condition</span>
+                                <span className={styles.truthMetaValue}>{description}</span>
                             </div>
+                            {resolutionDate && (
+                                <div className={styles.truthMetaItem}>
+                                    <span className={styles.truthMetaLabel}>Resolved on</span>
+                                    <span className={styles.truthMetaValue}>{resolutionDate}</span>
+                                </div>
+                            )}
+                        </div>
                         </div>
 
                         <div className={styles.finalizedContent}>
@@ -190,14 +167,7 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
 
                                 {/* Resolution Details */}
                                 <div className={styles.resolutionSection}>
-                                    <h3 className={styles.sectionTitle}>Resolution Details</h3>
-                                    <div className={styles.resolutionInfo}>
-                                        <p>{description}</p>
-                                        <div className={styles.resolutionMeta}>
-                                            <strong>Source:</strong> {resolutionSource}<br/>
-                                            <strong>Rule:</strong> {resolutionRule}
-                                        </div>
-                                    </div>
+                                    {market && <ResolutionRules market={market} />}
                                 </div>
                             </div>
 
@@ -264,28 +234,24 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
                                     Resolving<span className={styles.truthEllipsis}>...</span>
                                 </div>
                             </div>
-                            <div className={styles.truthMeta}>
-                                <div className={styles.truthMetaItem}>
-                                    <span className={styles.truthMetaLabel}>Condition</span>
-                                    <span className={styles.truthMetaValue}>{description}</span>
-                                </div>
-                                <div className={styles.truthMetaItem}>
-                                    <span className={styles.truthMetaLabel}>Source</span>
-                                    <span className={styles.truthMetaValue}>{resolutionSource}</span>
-                                </div>
-                                {resolutionDate && (
-                                    <div className={styles.truthMetaItem}>
-                                        <span className={styles.truthMetaLabel}>Expected</span>
-                                        <span className={styles.truthMetaValue}>{resolutionDate}</span>
-                                    </div>
-                                )}
+                        <div className={styles.truthMeta}>
+                            <div className={styles.truthMetaItem}>
+                                <span className={styles.truthMetaLabel}>Condition</span>
+                                <span className={styles.truthMetaValue}>{description}</span>
                             </div>
+                            {resolutionDate && (
+                                <div className={styles.truthMetaItem}>
+                                    <span className={styles.truthMetaLabel}>Expected</span>
+                                    <span className={styles.truthMetaValue}>{resolutionDate}</span>
+                                </div>
+                            )}
+                        </div>
                         </div>
 
                         <div className={styles.progressSection}>
                             <div className={styles.probabilityText}>
-                                <span style={{ color: '#f97316' }}>Yes {probability.toFixed(1)}%</span>
-                                <span style={{ color: '#71717a' }}>No {(100 - probability).toFixed(1)}%</span>
+                                <span style={{ color: '#f97316' }}>{market?.sideAName ?? 'Side A'} {probability.toFixed(1)}%</span>
+                                <span style={{ color: '#71717a' }}>{market?.sideBName ?? 'Side B'} {(100 - probability).toFixed(1)}%</span>
                             </div>
                             <div className={styles.barBackground}>
                                 <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
@@ -359,17 +325,33 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
                         <button className={styles.backButton}>Share</button>
                     </div>
 
-                    <div className={styles.metaRow}>
-                        <span>Ends on Dec 15, 2025</span>
-                        <span>Created by Limitless</span>
-                    </div>
+                        <div className={styles.metaRow}>
+                            <span>
+                                Ends on {formatResolutionDate(market?.deadlineDate ?? market?.deadline) ?? '—'}
+                            </span>
+                            {market?.contractId && (
+                                <span>
+                                    {formatAddress(market.contractId)}
+                                    <button
+                                        className={styles.copyButton}
+                                        onClick={() => {
+                                            navigator.clipboard?.writeText(market.contractId);
+                                            showToast('Address copied', 'success');
+                                        }}
+                                        aria-label="Copy contract address"
+                                    >
+                                        <CopyIcon />
+                                    </button>
+                                </span>
+                            )}
+                        </div>
 
                     <h1 className={styles.title}>{marketTitle}</h1>
 
                     <div className={styles.progressSection}>
                         <div className={styles.probabilityText}>
-                            <span style={{ color: '#f97316' }}>Yes {probability.toFixed(1)}%</span>
-                            <span style={{ color: '#71717a' }}>No {(100 - probability).toFixed(1)}%</span>
+                            <span style={{ color: '#f97316' }}>{market?.sideAName ?? 'Side A'} {probability.toFixed(1)}%</span>
+                            <span style={{ color: '#71717a' }}>{market?.sideBName ?? 'Side B'} {(100 - probability).toFixed(1)}%</span>
                         </div>
                         <div className={styles.barBackground}>
                             <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
@@ -378,28 +360,11 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
 
                     <div className={styles.volumeRow}>
                         <span>↗ Volume {formatVolume(volume)}</span>
-                        <span>Value 1.00 USDC ⓘ</span>
                     </div>
 
                     <ChartSection probability={probability} type={type} identifier={identifier} />
 
-                    <div className={styles.resolutionSection}>
-                        <div className={styles.resTabs}>
-                            <div className={`${styles.resTab} ${styles.resTabActive}`}>Resolution</div>
-
-                        </div>
-                        <div className={styles.resText}>
-                            <p>Resolution is centralized and made by the Limitless team.</p>
-                            <br />
-                            <p>
-                                {description}
-                                <br />
-                                Source: {resolutionSource}
-                                <br />
-                                {resolutionRule}
-                            </p>
-                        </div>
-                    </div>
+                        {market && <ResolutionRules market={market} />}
                 </div>
 
                 {/* Right Column: Trading */}

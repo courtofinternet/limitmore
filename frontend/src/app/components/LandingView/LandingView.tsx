@@ -2,12 +2,19 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './LandingView.module.css';
 import ChartSection from '../SharedMarket/ChartSection';
+import ProbabilityGauge from '../SharedMarket/ProbabilityGauge';
 import { MarketData } from '../../../data/markets';
-import { fetchAllMarkets } from '../../../lib/onchain/reads';
+import { fetchMarketsByStatus } from '../../../lib/onchain/reads';
+import TradeBox from '../SharedMarket/TradeBox';
+import { useToast } from '../../providers/ToastProvider';
+import { formatAddress } from '../../../utils/formatters';
+import CopyIcon from '../Shared/CopyIcon';
+import ResolutionRules from '../Shared/ResolutionRules';
 
 const LandingView: React.FC = () => {
     const router = useRouter();
-    const [selectedMarketId, setSelectedMarketId] = React.useState<number | null>(null);
+    const { showToast } = useToast();
+    const [selectedMarketId, setSelectedMarketId] = React.useState<string | null>(null);
     const [navStartIndex, setNavStartIndex] = React.useState<number>(0);
     const [markets, setMarkets] = React.useState<MarketData[]>([]);
     const [loading, setLoading] = React.useState<boolean>(true);
@@ -17,10 +24,21 @@ const LandingView: React.FC = () => {
         const load = async () => {
             setLoading(true);
             try {
-                const data = await fetchAllMarkets();
+                const data = await fetchMarketsByStatus('ACTIVE');
+                const unique: MarketData[] = [];
+                const seen = new Set<string>();
+                data.forEach((m) => {
+                    // Only process markets that are explicitly active
+                    if (m.state !== 'ACTIVE') return;
+
+                    const key = (m.contractId || m.id || unique.length).toString();
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    unique.push({ ...m, id: (m.contractId || (unique.length + 1).toString()) });
+                });
                 if (!cancelled) {
-                    setMarkets(data);
-                    setSelectedMarketId(data[0]?.id ?? null);
+                    setMarkets(unique);
+                    setSelectedMarketId(unique[0]?.id ?? null);
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -38,7 +56,7 @@ const LandingView: React.FC = () => {
     // Define the full list for navigation
     const allNavItems = [
         ...markets.slice(0, 4),
-        { id: -1, ticker: 'More Markets', identifier: 'more', type: 'other' } as MarketData
+        { id: '-1', ticker: 'More Markets', identifier: 'more', type: 'other' } as MarketData
     ].filter(Boolean);
 
     // Derived view for the carousel (show 3 items)
@@ -60,9 +78,6 @@ const LandingView: React.FC = () => {
             setNavStartIndex(prev => prev - 1);
         }
     };
-
-    // Helper to format price
-    const displayPrice = selectedMarket?.type === 'crypto' ? "$92,613.00" : "$318.11";
 
     return (
         <div className={styles.container}>
@@ -104,6 +119,7 @@ const LandingView: React.FC = () => {
                                                 key="more"
                                                 className={styles.moreMarkets}
                                                 onClick={() => router.push('/markets')}
+                                                style={{ marginTop: '6px' }}
                                             >
                                                 More Markets
                                             </div>
@@ -111,7 +127,7 @@ const LandingView: React.FC = () => {
                                     }
                                     return market ? (
                                         <div
-                                            key={market.id}
+                                            key={market.contractId || market.id}
                                             className={styles.navItem}
                                             onClick={() => setSelectedMarketId(market.id)}
                                             style={{
@@ -148,26 +164,33 @@ const LandingView: React.FC = () => {
                     </div>
                 </div>
 
-                <h3 className={styles.marketTitle}>
-                    <div style={{
-                        width: '40px', height: '40px', background: '#f59e0b', borderRadius: '8px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '24px', flexShrink: 0
-                    }}>
-                        {selectedMarket.type === 'crypto' ? '₿' : 'G'}
-                    </div>
-                    <span>{selectedMarket.title}</span>
-                </h3>
-
-                <div className={styles.priceDisplay}>
-                    <div>
-                        <div className={styles.currentPrice}>
-                            {selectedMarket.id === 1 ? "$92,613.00" : selectedMarket.id === 5 ? "$318.11" : "$124.50"}
+                <div className={styles.header}>
+                    <div className={styles.headerLeft}>
+                        <span className={styles.icon}>
+                            {selectedMarket.type === 'crypto' ? '₿' : 'G'}
+                        </span>
+                        <div className={styles.titleGroup}>
+                            <h3 className={styles.title}>{selectedMarket.title}</h3>
+                            {selectedMarket?.contractId && (
+                                <div className={styles.addressRow}>
+                                    <span className={styles.addressText}>{formatAddress(selectedMarket.contractId)}</span>
+                                    <button
+                                        className={styles.copyBtn}
+                                        onClick={() => {
+                                            if (!selectedMarket?.contractId) return;
+                                            navigator.clipboard?.writeText(selectedMarket.contractId);
+                                            showToast('Address copied', 'success');
+                                        }}
+                                        aria-label="Copy contract address"
+                                    >
+                                        <CopyIcon />
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                        <div style={{ fontSize: '10px', color: '#999' }}>BASELINE PRICE</div>
                     </div>
-                    <div>
-                        <div style={{ fontSize: '14px', fontWeight: '700' }}>51 mins 55 secs</div>
-                        <div className={styles.timeRemaining}>CLOSES IN</div>
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                        <ProbabilityGauge probability={selectedMarket.probYes * 100} />
                     </div>
                 </div>
 
@@ -181,51 +204,12 @@ const LandingView: React.FC = () => {
                     />
                 </div>
 
-                <div className={styles.timeRangeTabs}>
-                    <div className={`${styles.trTab} ${styles.trActive}`}>1H</div>
-                    <div className={styles.trTab}>6H</div>
-                    <div className={styles.trTab}>1D</div>
-                    <div className={styles.trTab}>1W</div>
+
+                <div className={styles.tradeBoxEmbed}>
+                    <TradeBox market={selectedMarket} probability={selectedMarket.probYes * 100} />
                 </div>
 
-                <div className={styles.actionButtons}>
-                    <button className={`${styles.actionBtn} ${styles.btnAbove}`}>
-                        ABOVE ↑ {(selectedMarket.probYes * 100).toFixed(1)}%
-                    </button>
-                    <button className={`${styles.actionBtn} ${styles.btnBelow}`} style={{ background: '#ea580c' }}>
-                        BELOW ↓ {(selectedMarket.probNo * 100).toFixed(1)}%
-                    </button>
-                </div>
-
-                <div className={styles.sentiment}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: '600' }}>
-                        <span>Community Sentiment</span>
-                    </div>
-                    <div className={styles.sentimentBar}>
-                        <div style={{ width: `${selectedMarket.probYes * 100}%`, background: '#22c55e' }}></div>
-                        <div style={{ width: `${selectedMarket.probNo * 100}%`, background: '#ea580c' }}></div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '4px', color: '#777' }}>
-                        <span>{(selectedMarket.probYes * 100).toFixed(1)}% Will go Up</span>
-                        <span>{(selectedMarket.probNo * 100).toFixed(1)}% Will go Down</span>
-                    </div>
-                </div>
-
-                <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #eee' }}>
-                    <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '8px' }}>Resolution Rules</h4>
-                    <p style={{ fontSize: '12px', color: '#666', lineHeight: '1.5' }}>
-                        {selectedMarket.description}
-                        <br />
-                        Source: {selectedMarket.resolutionSource}.
-                        <br />
-                        <span style={{ color: '#999', fontSize: '11px', marginTop: '4px', display: 'block' }}>
-                            Rules: {selectedMarket.resolutionRule}
-                        </span>
-                    </p>
-                    <div style={{ marginTop: '8px', fontSize: '11px', color: '#999' }}>
-                        Resolution is decentralised
-                    </div>
-                </div>
+                <ResolutionRules market={selectedMarket} />
                 </>
                 )}
             </div>

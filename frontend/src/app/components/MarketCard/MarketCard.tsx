@@ -6,6 +6,9 @@ import ProbabilityGauge from '../SharedMarket/ProbabilityGauge';
 import { MarketData, getUserMarketStatus } from '../../../data/markets';
 import { claimRewards } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
+import { useToast } from '../../providers/ToastProvider';
+import { formatVolume, formatAddress, formatCountdown, formatDeadlineDateTime, formatExactUsdc } from '../../../utils/formatters';
+import ResolutionRules from '../Shared/ResolutionRules';
 
 interface MarketCardProps {
     market: MarketData;
@@ -22,39 +25,20 @@ interface MarketCardProps {
     identifier?: string;
 }
 
-const formatVolume = (num: number) => {
-    if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M USDC';
-    }
-    if (num >= 1000) {
-        return (num / 1000).toFixed(0) + 'k USDC';
-    }
-    return num.toString() + ' USDC';
-};
 
-const formatCountdown = (timeLeftMs: number) => {
-    const totalSeconds = Math.max(0, Math.floor(timeLeftMs / 1000));
-    const days = Math.floor(totalSeconds / 86400);
-    const hours = Math.floor((totalSeconds % 86400) / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-};
-
-const formatDeadlineDateTime = (deadlineSeconds: number) => {
-    const date = new Date(deadlineSeconds * 1000);
-    return date.toLocaleString(undefined, {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-};
-
-const formatExactUsdc = (num: number) => {
-    return `${num.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`;
-};
+const CopyIcon = () => (
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+    >
+        <rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+        <rect x="4" y="4" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.65" />
+    </svg>
+);
 
 const MarketCard: React.FC<MarketCardProps> = ({
     market,
@@ -77,15 +61,46 @@ const MarketCard: React.FC<MarketCardProps> = ({
     const identifier = market?.identifier || legacyIdentifier;
 
     const { isConnected, walletAddress } = useWallet();
+    const { showToast } = useToast();
 
     // Get user market status if we have market data and wallet connected
     const userStatus = market && isConnected && walletAddress ? getUserMarketStatus(market.id, walletAddress) : null;
 
+    // --- Countdown (simple, using raw end date) ---
     const hasNow = typeof now === 'number';
-    const currentTimeMs = hasNow ? now : null;
-    const deadlineMs = market ? market.deadline * 1000 : null;
-    const deadlineText = market ? formatDeadlineDateTime(market.deadline) : null;
-    const countdownText = deadlineMs && currentTimeMs ? formatCountdown(deadlineMs - currentTimeMs) : null;
+    const deadlineSeconds = (() => {
+        if (!market) return null;
+        if (market.deadlineDate) {
+            const parsed = Date.parse(market.deadlineDate);
+            if (!Number.isNaN(parsed)) return Math.floor(parsed / 1000);
+        }
+        if (market.deadline !== undefined && market.deadline !== null) {
+            const numeric = typeof market.deadline === 'string' ? Number(market.deadline) : market.deadline;
+            if (Number.isFinite(numeric)) return numeric;
+        }
+        return null;
+    })();
+    const nowSeconds = hasNow ? now! : null;
+    const deadlineText = deadlineSeconds !== null ? formatDeadlineDateTime(deadlineSeconds) : null;
+    const countdownText = (() => {
+        if (deadlineSeconds === null || nowSeconds === null) return null;
+        const diffSeconds = deadlineSeconds - nowSeconds;
+        if (diffSeconds <= 0) return '0d 0h 0m 0s';
+        return formatCountdown(diffSeconds * 1000);
+    })();
+
+    React.useEffect(() => {
+        if (!market) return;
+        console.debug('[MarketCard countdown]', {
+            contractId: market.contractId,
+            deadlineSeconds,
+            nowSeconds,
+            diffSeconds: deadlineSeconds !== null && nowSeconds !== null ? deadlineSeconds - nowSeconds : null,
+            rawDeadline: market.deadline,
+            deadlineDate: market.deadlineDate,
+            countdownText
+        });
+    }, [market, deadlineSeconds, nowSeconds, countdownText]);
 
     const handleClaim = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -125,9 +140,27 @@ const MarketCard: React.FC<MarketCardProps> = ({
     return (
         <div className={`${styles.card} ${isResolving ? styles.cardResolving : ''} ${isFinalized ? styles.cardFinalized : ''}`} onClick={onClick}>
             <div className={styles.header}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flex: 1 }}>
+                <div className={styles.headerLeft}>
                     <span className={styles.icon}>{icon}</span>
-                    <h3 className={styles.title}>{title}</h3>
+                    <div className={styles.titleGroup}>
+                        <h3 className={styles.title}>{title}</h3>
+                        {market?.contractId && (
+                            <div className={styles.addressRow}>
+                                <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
+                                <button
+                                    className={styles.copyBtn}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard?.writeText(market.contractId);
+                                        showToast('Address copied', 'success');
+                                    }}
+                                    aria-label="Copy contract address"
+                                >
+                                    <CopyIcon />
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                     <ProbabilityGauge probability={probability} />
@@ -163,13 +196,9 @@ const MarketCard: React.FC<MarketCardProps> = ({
                                     <span className={styles.resolvingValue}>{deadlineText}</span>
                                 </div>
                                 <div className={styles.resolvingRow}>
-                                    <span className={styles.resolvingLabel}>Source</span>
-                                    <span className={styles.resolvingValue}>{market.resolutionSource}</span>
-                                </div>
-                                <div className={styles.resolvingRow}>
                                     <span className={styles.resolvingLabel}>Rule</span>
-                                    <span className={`${styles.resolvingValue} ${styles.resolvingRule}`} title={market.resolutionRule}>
-                                        {market.resolutionRule}
+                                    <span className={`${styles.resolvingValue} ${styles.resolvingRule}`}>
+                                        <ResolutionRules market={market} variant="inline" showTitle={false} />
                                     </span>
                                 </div>
                             </div>

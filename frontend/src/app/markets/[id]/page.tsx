@@ -4,8 +4,8 @@ import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../components/Header/Header';
 import MarketFullPage from '../../components/MarketExpanded/MarketFullPage';
-import { MarketData } from '../../../data/markets';
-import { fetchAllMarkets } from '../../../lib/onchain/reads';
+import { MarketData, MarketState } from '../../../data/markets';
+import { fetchMarketsByStatus } from '../../../lib/onchain/reads';
 import styles from '../../page.module.css';
 
 // src/app/markets/[id]/page.tsx
@@ -18,7 +18,7 @@ import styles from '../../page.module.css';
 export default function MarketPage() {
     const router = useRouter();
     const params = useParams();
-    const id = Number(params?.id);
+    const id = params?.id as string;
 
     const [market, setMarket] = React.useState<MarketData | null>(null);
     const [loading, setLoading] = React.useState<boolean>(true);
@@ -28,14 +28,24 @@ export default function MarketPage() {
         const load = async () => {
             setLoading(true);
             try {
-                const all = await fetchAllMarkets();
-                const found = all.find((m) => m.id === id) || null;
+                const target = (id || '').toLowerCase();
+                const statuses: MarketState[] = ['ACTIVE', 'RESOLVING', 'RESOLVED', 'UNDETERMINED'];
+                let found: MarketData | null = null;
+                for (const s of statuses) {
+                    const list = await fetchMarketsByStatus(s);
+                    found = list.find((m) => {
+                        const cid = (m.contractId || '').toLowerCase();
+                        const mid = (m.id ? String(m.id) : '').toLowerCase();
+                        return cid === target || mid === target;
+                    }) || null;
+                    if (found) break;
+                }
                 if (!cancelled) setMarket(found);
             } finally {
                 if (!cancelled) setLoading(false);
             }
         };
-        if (!Number.isNaN(id)) {
+        if (id) {
             load();
         }
         return () => {

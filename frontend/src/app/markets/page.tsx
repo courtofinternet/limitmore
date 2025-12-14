@@ -9,13 +9,16 @@ import MarketDetailPanel from '../components/MarketDetailPanel/MarketDetailPanel
 import styles from '../page.module.css';
 import { MarketState, MarketData } from '../../data/markets';
 import { fetchMarketsByStatus } from '../../lib/onchain/reads';
+import { useToast } from '../providers/ToastProvider';
 
 export default function MarketsPage() {
     const router = useRouter();
-    const [selectedMarketId, setSelectedMarketId] = useState<number | null>(null);
+    const { showToast } = useToast();
+    const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+    const [selectedMarketData, setSelectedMarketData] = useState<MarketData | null>(null);
     const [activeCategory, setActiveCategory] = useState('All'); // UI category, not used for fetching
     const [activeMarketState, setActiveMarketState] = useState<MarketState>('ACTIVE');
-    const [now, setNow] = useState(() => Date.now());
+    const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
     const [marketsByState, setMarketsByState] = useState<Record<MarketState, MarketData[]>>({
         ACTIVE: [],
         RESOLVING: [],
@@ -28,14 +31,23 @@ export default function MarketsPage() {
         RESOLVED: false,
         UNDETERMINED: false
     });
+    const [loadedStates, setLoadedStates] = useState<Record<MarketState, boolean>>({
+        ACTIVE: false,
+        RESOLVING: false,
+        RESOLVED: false,
+        UNDETERMINED: false
+    });
 
     useEffect(() => {
-        const id = window.setInterval(() => setNow(Date.now()), 1000);
+        const id = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
         return () => window.clearInterval(id);
     }, []);
 
-    const handleMarketClick = (id: number) => {
+    const handleMarketClick = (id: string) => {
         setSelectedMarketId(id);
+        // Find and store the market data from current markets
+        const market = currentMarkets.find(m => m.id === id);
+        setSelectedMarketData(market || null);
     };
 
     const loadState = async (state: MarketState) => {
@@ -43,6 +55,10 @@ export default function MarketsPage() {
         try {
             const markets = await fetchMarketsByStatus(state);
             setMarketsByState((prev) => ({ ...prev, [state]: markets }));
+            setLoadedStates((prev) => ({ ...prev, [state]: true }));
+        } catch (error) {
+            console.error(`Failed to load ${state} markets:`, error);
+            showToast(`Failed to load ${state.toLowerCase()} markets. Please try again.`, 'error');
         } finally {
             setLoadingStates((prev) => ({ ...prev, [state]: false }));
         }
@@ -50,15 +66,49 @@ export default function MarketsPage() {
 
     // Load needed state data when state changes (initially and on switch)
     useEffect(() => {
-        if (!marketsByState[activeMarketState]?.length && !loadingStates[activeMarketState]) {
+        if (!loadedStates[activeMarketState] && !loadingStates[activeMarketState]) {
             loadState(activeMarketState);
         }
-    }, [activeMarketState, marketsByState, loadingStates]);
+    }, [activeMarketState, loadedStates, loadingStates]);
 
     // Determine current markets based on category selection
     const currentMarkets: MarketData[] = marketsByState[activeMarketState] || [];
 
-    const selectedMarket = currentMarkets.find(m => m.id === selectedMarketId);
+    // Find selected market: first try current state, then check other states, finally use stored data
+    const findSelectedMarket = (): MarketData | null => {
+        if (!selectedMarketId) return null;
+
+        // First try to find in current state (for updated data)
+        const currentStateMarket = currentMarkets.find(m => m.id === selectedMarketId);
+        if (currentStateMarket) {
+            // Update stored data with latest version
+            if (selectedMarketData?.contractId !== currentStateMarket.contractId) {
+                setSelectedMarketData(currentStateMarket);
+            }
+            return currentStateMarket;
+        }
+
+        // If not in current state, try to find the same market in other states by contractId
+        if (selectedMarketData?.contractId) {
+            for (const state of Object.keys(marketsByState) as MarketState[]) {
+                if (state !== activeMarketState) {
+                    const marketInOtherState = marketsByState[state].find(
+                        m => m.contractId === selectedMarketData.contractId
+                    );
+                    if (marketInOtherState) {
+                        // Update stored data with latest version from other state
+                        setSelectedMarketData(marketInOtherState);
+                        return marketInOtherState;
+                    }
+                }
+            }
+        }
+
+        // Fall back to stored market data (maintains panel persistence)
+        return selectedMarketData;
+    };
+
+    const selectedMarket = findSelectedMarket();
 
     const filteredMarkets = currentMarkets.filter(market => {
         // Map UI category labels to contract enums
@@ -70,7 +120,8 @@ export default function MarketsPage() {
         return matchesCategory;
     });
 
-    const isGridLoading = loadingStates[activeMarketState] && !(marketsByState[activeMarketState]?.length);
+    const isGridLoading = loadingStates[activeMarketState] && !loadedStates[activeMarketState];
+    const isEmpty = !isGridLoading && filteredMarkets.length === 0;
 
     return (
         <>
@@ -119,29 +170,45 @@ export default function MarketsPage() {
                                         <div className={styles.shimmer}></div>
                                     </div>
                                 ))
-                                : filteredMarkets.map((market) => (
-                                    <MarketCard
-                                        key={market.id}
-                                        market={market}
-                                        now={now}
-                                        onClick={() => handleMarketClick(market.id)}
-                                    />
-                                ))}
+                                : isEmpty ? (
+                                    <div className={styles.emptyState}>
+                                        {activeMarketState === 'ACTIVE' && 'No active markets'}
+                                        {activeMarketState === 'RESOLVING' && 'No resolving markets'}
+                                        {activeMarketState === 'RESOLVED' && 'No finalized markets'}
+                                        {activeMarketState === 'UNDETERMINED' && 'No undetermined markets'}
+                                    </div>
+                                ) : (
+                                    filteredMarkets.map((market) => (
+                                        <MarketCard
+                                            key={market.contractId}
+                                            market={market}
+                                            now={now}
+                                            onClick={() => handleMarketClick(market.id)}
+                                        />
+                                    ))
+                                )}
                         </div>
                     </div>
 
                 </div>
 
-                {selectedMarketId && (
+                {selectedMarketId !== null && (
                     <div className={styles.sidePanelContainer}>
-                        {isGridLoading ? (
+                        {isGridLoading && !selectedMarket ? (
                             <div className={styles.skeletonDetail}>
                                 <div className={styles.shimmer}></div>
                             </div>
                         ) : (
                             <MarketDetailPanel
-                                onClose={() => setSelectedMarketId(null)}
-                                onFullPage={() => selectedMarketId && router.push(`/markets/${selectedMarketId}`)}
+                                onClose={() => {
+                                    setSelectedMarketId(null);
+                                    setSelectedMarketData(null);
+                                }}
+                                onFullPage={() => {
+                                    if (selectedMarket?.contractId) {
+                                        router.push(`/markets/${selectedMarket.contractId}`);
+                                    }
+                                }}
                                 market={selectedMarket}
                             />
                         )}

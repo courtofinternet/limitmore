@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "./providers/WalletProvider";
+import { ToastProvider } from "./providers/ToastProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -21,9 +22,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.variable}>
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        <ToastProvider>
+          <WalletProvider>
+            {children}
+          </WalletProvider>
+        </ToastProvider>
         <script src="https://widgets.coingecko.com/gecko-coin-price-chart-widget.js" async></script>
       </body>
     </html>

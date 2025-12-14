@@ -6,6 +6,10 @@ import { MarketData, getUserMarketStatus } from '../../../data/markets';
 import { claimRewards } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
 import ConnectWalletPrompt from '../Wallet/ConnectWalletPrompt';
+import { useToast } from '../../providers/ToastProvider';
+import { formatUsdcCompact, formatUsdcAmount, formatAddress, formatResolutionDate, formatVolume } from '../../../utils/formatters';
+import CopyIcon from '../Shared/CopyIcon';
+import ResolutionRules from '../Shared/ResolutionRules';
 
 interface MarketDetailPanelProps {
     onClose: () => void;
@@ -17,36 +21,9 @@ interface MarketDetailPanelProps {
     type?: 'crypto' | 'stock' | 'other';
     identifier?: string;
     description?: string;
-    resolutionSource?: string;
-    resolutionRule?: string;
     volume?: number;
 }
 
-const formatUsdcCompact = (num: number) => {
-    if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M USDC';
-    }
-    if (num >= 1000) {
-        return (num / 1000).toFixed(0) + 'k USDC';
-    }
-    return num.toLocaleString() + ' USDC';
-};
-
-const formatUsdcAmount = (num: number) => {
-    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDC';
-};
-
-const formatResolutionDate = (deadlineSeconds?: number) => {
-    if (!deadlineSeconds) return null;
-    const date = new Date(deadlineSeconds * 1000);
-    return date.toLocaleString(undefined, {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-};
 
 const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
     onClose,
@@ -58,18 +35,17 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
     type: legacyType = 'crypto',
     identifier: legacyIdentifier = 'bitcoin',
     description: legacyDescription = "",
-    resolutionSource: legacyResolutionSource = "Oracle",
-    resolutionRule: legacyResolutionRule = "Standard Rules",
     volume: legacyVolume = 0
 }) => {
+    const { showToast } = useToast();
+    const panelRef = React.useRef<HTMLDivElement>(null);
+    const initialStatusRef = React.useRef<string | null>(null);
     // Use market data or fall back to legacy props
     const marketTitle = market?.title || legacyTitle;
     const probability = market ? market.probYes * 100 : legacyProbability;
     const type = market?.type || legacyType;
     const identifier = market?.identifier || legacyIdentifier;
     const description = market?.description || legacyDescription;
-    const resolutionSource = market?.resolutionSource || legacyResolutionSource;
-    const resolutionRule = market?.resolutionRule || legacyResolutionRule;
     const volume = market?.volume || legacyVolume;
 
     const { isConnected, walletAddress } = useWallet();
@@ -86,6 +62,57 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
         await claimRewards(market.contractId as `0x${string}`);
     };
 
+    // Close panel when market status changes
+    React.useEffect(() => {
+        const currentStatus = market?.state;
+
+        // Set initial status on first render
+        if (initialStatusRef.current === null && currentStatus) {
+            initialStatusRef.current = currentStatus;
+            return;
+        }
+
+        // If status changed from initial, close panel
+        if (initialStatusRef.current && currentStatus && initialStatusRef.current !== currentStatus) {
+            onClose();
+        }
+    }, [market?.state, onClose]);
+
+    // Close panel when clicking outside (but not on navigation elements)
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+
+            // Don't close if clicking inside the panel
+            if (panelRef.current && panelRef.current.contains(target)) {
+                return;
+            }
+
+            // Don't close if clicking on navigation elements
+            const isNavigationClick = target.closest('.stateFilter') ||
+                                    target.closest('[class*="stateFilter"]') ||
+                                    target.closest('[class*="CategoryFilter"]') ||
+                                    target.closest('[class*="categoryFilter"]') ||
+                                    target.classList.contains('stateFilter') ||
+                                    target.dataset.role === 'navigation' ||
+                                    // Check for common navigation class patterns
+                                    Array.from(target.classList).some(cls =>
+                                        cls.includes('filter') ||
+                                        cls.includes('nav') ||
+                                        cls.includes('tab') ||
+                                        cls.includes('category') ||
+                                        cls.includes('state')
+                                    );
+
+            if (!isNavigationClick) {
+                onClose();
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
     // Finalized markets: minimalist summary + position
     if (market?.state === 'RESOLVED' || market?.state === 'UNDETERMINED') {
         const outcomeYes = market.resolvedOutcome === 'YES';
@@ -94,7 +121,7 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
         const potentialWinnings = userStatus?.potentialWinnings ?? 0;
 
         return (
-            <div className={styles.panel}>
+            <div className={styles.panel} ref={panelRef}>
                 <div className={styles.scrollContainer}>
                     <div className={styles.topBar}>
                         <button className={styles.backButton} onClick={onClose}>
@@ -106,17 +133,55 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                         </div>
                     </div>
 
+                    {/* Metadata for resolved markets */}
+                    <div className={styles.metaRow}>
+                        <span>
+                            Ended at {formatResolutionDate(market.deadlineDate ?? market.deadline) ?? '—'}
+                        </span>
+                        {market.contractId && (
+                            <span className={styles.contractBadge}>
+                                <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
+                                <button
+                                    className={styles.copyButton}
+                                    onClick={() => {
+                                        navigator.clipboard?.writeText(market.contractId);
+                                        showToast('Address copied', 'success');
+                                    }}
+                                    aria-label="Copy contract address"
+                                >
+                                    <CopyIcon />
+                                </button>
+                            </span>
+                        )}
+                    </div>
+
                     <div className={styles.hero}>
                         <div className={styles.heroTitleRow}>
                             <h2 className={styles.heroTitle}>{marketTitle}</h2>
-                            {market.resolvedOutcome && (
+                            {market.state === 'UNDETERMINED' ? (
+                                <span className={`${styles.pill} ${styles.pillNeutral}`}>
+                                    Undetermined
+                                </span>
+                            ) : market.resolvedOutcome && (
                                 <span className={`${styles.pill} ${outcomeYes ? styles.pillYes : styles.pillNo}`}>
                                     {market.resolvedOutcome} won
                                 </span>
                             )}
                         </div>
                         <div className={styles.heroMetaRow}>
+                            <span className={styles.heroMeta}>Market resolved</span>
                             <span className={styles.heroMeta}>{formatUsdcCompact(volume)} volume</span>
+                        </div>
+                    </div>
+
+                    {/* Progress Bar for resolved markets */}
+                    <div className={styles.progressBarContainer}>
+                        <div className={styles.probabilityText}>
+                            <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
+                            <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
+                        </div>
+                        <div className={styles.barBackground}>
+                            <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
                         </div>
                     </div>
 
@@ -192,37 +257,18 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                                 <span className={styles.truthMetaLabel}>Condition</span>
                                 <span className={styles.truthMetaValue}>{market.description}</span>
                             </div>
-                            <div className={styles.truthMetaItem}>
-                                <span className={styles.truthMetaLabel}>Source</span>
-                                <span className={styles.truthMetaValue}>{resolutionSource}</span>
-                            </div>
-                            {market.deadline && (
+                            {(market.deadlineDate || market.deadline) && (
                                 <div className={styles.truthMetaItem}>
                                     <span className={styles.truthMetaLabel}>Resolved on</span>
                                     <span className={styles.truthMetaValue}>
-                                        {formatResolutionDate(market.deadline)}
+                                        {formatResolutionDate(market.deadlineDate ?? market.deadline)}
                                     </span>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className={styles.details} aria-label="Resolution and rules">
-                        <div className={styles.detailsSummaryStatic}>Resolution &amp; rules</div>
-                        <div className={styles.detailsBody}>
-                            <p className={styles.detailsText}>{description}</p>
-                            <div className={styles.detailsGrid}>
-                                <div className={styles.detailItem}>
-                                    <div className={styles.detailLabel}>Source</div>
-                                    <div className={styles.detailValue}>{resolutionSource}</div>
-                                </div>
-                                <div className={styles.detailItem}>
-                                    <div className={styles.detailLabel}>Rule</div>
-                                    <div className={styles.detailValue}>{resolutionRule}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                        <ResolutionRules market={market} variant="compact" />
                 </div>
             </div>
         );
@@ -233,7 +279,7 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
         const position = userStatus?.position;
 
         return (
-            <div className={styles.panel}>
+            <div className={styles.panel} ref={panelRef}>
                 <div className={styles.scrollContainer}>
                     <div className={styles.topBar}>
                         <div style={{ display: 'flex', gap: '8px' }}>
@@ -245,6 +291,28 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                         <button className={styles.shareButton}>Share</button>
                     </div>
 
+                    {/* Metadata for resolving markets */}
+                    <div className={styles.metaRow}>
+                        <span>
+                            Ends on {formatResolutionDate(market.deadlineDate ?? market.deadline) ?? '—'}
+                        </span>
+                        {market.contractId && (
+                            <span className={styles.contractBadge}>
+                                <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
+                                <button
+                                    className={styles.copyButton}
+                                    onClick={() => {
+                                        navigator.clipboard?.writeText(market.contractId);
+                                        showToast('Address copied', 'success');
+                                    }}
+                                    aria-label="Copy contract address"
+                                >
+                                    <CopyIcon />
+                                </button>
+                            </span>
+                        )}
+                    </div>
+
                     <div className={styles.hero}>
                         <div className={styles.heroTitleRow}>
                             <h2 className={styles.heroTitle}>{marketTitle}</h2>
@@ -253,6 +321,17 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                         <div className={styles.heroMetaRow}>
                             <span className={styles.heroMeta}>Trading paused</span>
                             <span className={styles.heroMeta}>{formatUsdcCompact(volume)} volume</span>
+                        </div>
+                    </div>
+
+                    {/* Progress Bar for resolving markets */}
+                    <div className={styles.progressBarContainer}>
+                        <div className={styles.probabilityText}>
+                            <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
+                            <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
+                        </div>
+                        <div className={styles.barBackground}>
+                            <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
                         </div>
                     </div>
 
@@ -295,43 +374,24 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                                 <span className={styles.truthMetaLabel}>Condition</span>
                                 <span className={styles.truthMetaValue}>{description}</span>
                             </div>
-                            <div className={styles.truthMetaItem}>
-                                <span className={styles.truthMetaLabel}>Source</span>
-                                <span className={styles.truthMetaValue}>{resolutionSource}</span>
-                            </div>
-                            {market.deadline && (
+                            {(market.deadlineDate || market.deadline) && (
                                 <div className={styles.truthMetaItem}>
                                     <span className={styles.truthMetaLabel}>Expected</span>
                                     <span className={styles.truthMetaValue}>
-                                        {formatResolutionDate(market.deadline)}
+                                        {formatResolutionDate(market.deadlineDate ?? market.deadline)}
                                     </span>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <div className={styles.details} aria-label="Resolution and rules">
-                        <div className={styles.detailsSummaryStatic}>Resolution &amp; rules</div>
-                        <div className={styles.detailsBody}>
-                            <p className={styles.detailsText}>{description}</p>
-                            <div className={styles.detailsGrid}>
-                                <div className={styles.detailItem}>
-                                    <div className={styles.detailLabel}>Source</div>
-                                    <div className={styles.detailValue}>{resolutionSource}</div>
-                                </div>
-                                <div className={styles.detailItem}>
-                                    <div className={styles.detailLabel}>Rule</div>
-                                    <div className={styles.detailValue}>{resolutionRule}</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                        <ResolutionRules market={market} variant="compact" />
                 </div>
             </div>
         );
     }
     return (
-        <div className={styles.panel}>
+        <div className={styles.panel} ref={panelRef}>
             <div className={styles.scrollContainer}>
 
                 {/* Header Actions */}
@@ -350,8 +410,24 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
 
                 {/* Metadata */}
                 <div className={styles.metaRow}>
-                    <span>Ends on Dec 15, 2025</span>
-                    <span>Created by Limitless</span>
+                    <span>
+                        Ends on {formatResolutionDate(market?.deadlineDate ?? market?.deadline) ?? '—'}
+                    </span>
+                    {market?.contractId && (
+                        <span className={styles.contractBadge}>
+                            <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
+                            <button
+                                className={styles.copyButton}
+                                onClick={() => {
+                                    navigator.clipboard?.writeText(market.contractId);
+                                    showToast('Address copied', 'success');
+                                }}
+                                aria-label="Copy contract address"
+                            >
+                                <CopyIcon />
+                            </button>
+                        </span>
+                    )}
                 </div>
 
                 <h2 className={styles.title}>{marketTitle}</h2>
@@ -359,8 +435,8 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                 {/* Progress Text */}
                 <div className={styles.progressBarContainer}>
                     <div className={styles.probabilityText}>
-                        <span style={{ color: '#f97316' }}>Yes {probability.toFixed(1)}%</span>
-                        <span style={{ color: '#71717a' }}>No {(100 - probability).toFixed(1)}%</span>
+                        <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
+                        <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
                     </div>
                     <div className={styles.barBackground}>
                         <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
@@ -369,7 +445,7 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
 
                 {/* Volume Stats */}
                 <div className={styles.volumeRow}>
-                    <span>↗ Volume {(volume / 1000).toFixed(1)}k USDC</span>
+                    <span>↗ Volume {formatVolume(volume)}</span>
                     <span>Value 1.00 USDC ⓘ</span>
                 </div>
 
@@ -379,19 +455,7 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                 <ChartSection probability={probability} type={type} identifier={identifier} />
 
                 {/* Resolution Info */}
-                <div className={styles.resolutionSection}>
-                    <div className={styles.resTabs}>
-                        <span className={`${styles.resTab} ${styles.resTabActive}`}>Resolution</span>
-                    </div>
-
-                    <p className={styles.resText}>
-                        {description}
-                        <br /><br />
-                        Source: {resolutionSource}
-                        <br />
-                        {resolutionRule}
-                    </p>
-                </div>
+                {market && <ResolutionRules market={market} />}
 
             </div>
         </div>

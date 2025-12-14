@@ -27,8 +27,6 @@ const ChartSection: React.FC<ChartSectionProps> = ({
                 </div>
             </div>
 
-            <div className={styles.chartValue}>{probability.toFixed(1)}% Chance</div>
-
             <div style={{ height: '320px', marginTop: '20px' }}>
                 {type === 'crypto' ? (
                     <GeckoWidget coinId={identifier} />

@@ -2,76 +2,39 @@
 // Factory contract: status-based address lists.
 // Market contract: per-bet metadata and totals.
 
-import { Abi } from 'viem';
+import { Abi, decodeAbiParameters } from 'viem';
 import { readContract } from 'wagmi/actions';
 import { baseSepolia } from 'wagmi/chains';
 import { wagmiConfig } from './wagmiConfig';
 import type { MarketData, MarketState, MarketOutcome } from '../../data/markets';
-import { MOCK_MARKETS } from '../../data/markets';
+import BetFactoryArtifact from '../../lib/contracts/BetFactoryCOFI.json';
+import BetArtifact from '../../lib/contracts/BetCOFI.json';
 
 const FACTORY_ADDRESS =
-    process.env.NEXT_PUBLIC_MARKET_FACTORY_ADDRESS || '0x0000000000000000000000000000000000000000';
-const FACTORY_ABI = [
-    {
-        type: 'function',
-        name: 'getBetsByStatus',
-        stateMutability: 'view',
-        inputs: [{ name: 'status', type: 'uint8', internalType: 'uint8' }],
-        outputs: [{ name: '', type: 'address[]', internalType: 'address[]' }]
-    }
-] as const satisfies Abi;
-
-const BET_ABI = [
-    {
-        type: 'function',
-        name: 'getInfo',
-        stateMutability: 'view',
-        inputs: [],
-        outputs: [
-            { name: '_creator', type: 'address', internalType: 'address' },
-            { name: '_title', type: 'string', internalType: 'string' },
-            { name: '_resolutionCriteria', type: 'string', internalType: 'string' },
-            { name: '_sideAName', type: 'string', internalType: 'string' },
-            { name: '_sideBName', type: 'string', internalType: 'string' },
-            { name: '_creationDate', type: 'uint256', internalType: 'uint256' },
-            { name: '_endDate', type: 'uint256', internalType: 'uint256' },
-            { name: '_isResolved', type: 'bool', internalType: 'bool' },
-            { name: '_isSideAWinner', type: 'bool', internalType: 'bool' },
-            { name: '_totalSideA', type: 'uint256', internalType: 'uint256' },
-            { name: '_totalSideB', type: 'uint256', internalType: 'uint256' }
-        ]
-    },
-    {
-        type: 'function',
-        name: 'status',
-        stateMutability: 'view',
-        inputs: [],
-        outputs: [{ name: '', type: 'uint8', internalType: 'uint8' }]
-    },
-    {
-        type: 'function',
-        name: 'resolutionType',
-        stateMutability: 'view',
-        inputs: [],
-        outputs: [{ name: '', type: 'uint8', internalType: 'uint8' }]
-    }
-] as const satisfies Abi;
-
-const STUB_DELAY_MS = 1500;
-
-function delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
+    process.env.NEXT_PUBLIC_BET_FACTORY_ADDRESS || '0x0000000000000000000000000000000000000000';
+const FACTORY_ABI = BetFactoryArtifact.abi as Abi;
+const BET_ABI = BetArtifact.abi as Abi;
 
 function isFactoryStubbed() {
     const isZero = FACTORY_ADDRESS === '0x0000000000000000000000000000000000000000';
     const hasAbi = Array.isArray(FACTORY_ABI) && FACTORY_ABI.length > 0;
-    return isZero || !hasAbi;
+    const shouldStub = isZero || !hasAbi;
+    if (shouldStub) {
+        console.error('[reads] Factory not configured', {
+            FACTORY_ADDRESS,
+            hasAbi
+        });
+    }
+    return shouldStub;
 }
 
 function isBetStubbed() {
     const hasAbi = Array.isArray(BET_ABI) && BET_ABI.length > 0;
-    return !hasAbi;
+    const shouldStub = !hasAbi;
+    if (shouldStub) {
+        console.error('[reads] Bet ABI not configured', { hasAbi });
+    }
+    return shouldStub;
 }
 
 const StatusMap: Record<number, MarketState> = {
@@ -89,14 +52,15 @@ function computeProb(totalA: number, totalB: number) {
     const vol = totalA + totalB;
     if (vol === 0) return { probYes: 0.5, probNo: 0.5, volume: 0 };
     const probYes = totalA / vol;
-    return { probYes, probNo: 1 - probYes, volume: vol };
+    // Convert volume from wei (6 decimals for USDC) to standard units
+    const volumeInUsdc = vol / 1e6;
+    return { probYes, probNo: 1 - probYes, volume: volumeInUsdc };
 }
 
 // Fetch bet addresses for a given status from factory
 export async function fetchBetAddressesByStatus(status: MarketState): Promise<`0x${string}`[]> {
     if (isFactoryStubbed()) {
-        await delay(STUB_DELAY_MS);
-        return MOCK_MARKETS.filter((m) => m.state === status).map((m) => m.contractId as `0x${string}`);
+        throw new Error('Factory address/ABI not configured');
     }
 
     const raw = await readContract(wagmiConfig, {
@@ -111,25 +75,35 @@ export async function fetchBetAddressesByStatus(status: MarketState): Promise<`0
 }
 
 // Fetch a single market info from its contract
-async function fetchMarketInfo(betAddress: `0x${string}`, fallback?: MarketData): Promise<MarketData> {
+async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
     if (isBetStubbed()) {
-        await delay(STUB_DELAY_MS);
-        if (fallback) return fallback;
-        return MOCK_MARKETS[0];
+        throw new Error("Bet ABI not configured");
     }
 
-    const [info, statusCode] = await Promise.all([
+    const [info, statusCode, resolutionTypeCode, resolutionDataBytes] = await Promise.all([
         readContract(wagmiConfig, {
             chainId: baseSepolia.id,
             address: betAddress,
             abi: BET_ABI,
-            functionName: 'getInfo'
+            functionName: "getInfo"
         }),
         readContract(wagmiConfig, {
             chainId: baseSepolia.id,
             address: betAddress,
             abi: BET_ABI,
-            functionName: 'status'
+            functionName: "status"
+        }),
+        readContract(wagmiConfig, {
+            chainId: baseSepolia.id,
+            address: betAddress,
+            abi: BET_ABI,
+            functionName: "resolutionType"
+        }),
+        readContract(wagmiConfig, {
+            chainId: baseSepolia.id,
+            address: betAddress,
+            abi: BET_ABI,
+            functionName: "resolutionData"
         })
     ]);
 
@@ -159,28 +133,55 @@ async function fetchMarketInfo(betAddress: `0x${string}`, fallback?: MarketData)
         bigint
     ];
 
+    const resolutionTypeNum = Number(resolutionTypeCode ?? 0);
+    let decodedSymbol = "";
+    let decodedName = "";
+    const rawLen = (resolutionDataBytes as string)?.length || 0;
+    const hasContent = typeof resolutionDataBytes === "string" && resolutionDataBytes.length > 2;
+    if (hasContent) {
+        try {
+            const [sym, nam] = decodeAbiParameters(
+                [{ type: "string" }, { type: "string" }],
+                resolutionDataBytes as `0x`
+            ) as [string, string];
+            decodedSymbol = sym || "";
+            decodedName = nam || "";
+        } catch (err) {
+            // ignore decode errors
+        }
+    }
+
     const totals = computeProb(Number(_totalSideA), Number(_totalSideB));
     const status = parseStatus(Number(statusCode));
     let resolvedOutcome: MarketOutcome | undefined = undefined;
-    if (status === 'RESOLVED') {
-        resolvedOutcome = _isSideAWinner ? 'YES' : 'NO';
+    if (status === "RESOLVED") {
+        resolvedOutcome = _isSideAWinner ? "YES" : "NO";
     }
-    if (status === 'UNDETERMINED') {
-        resolvedOutcome = 'INVALID';
+    if (status === "UNDETERMINED") {
+        resolvedOutcome = "INVALID";
     }
 
+    const category = resolutionTypeNum === 1 ? "STOCKS" : "CRYPTO";
+    const mType = category === "STOCKS" ? "stock" : "crypto";
+    const identifier = category === "STOCKS"
+        ? decodedSymbol
+        : (decodedName || decodedSymbol);
+
     return {
-        id: fallback?.id ?? 0,
+        id: betAddress,
         contractId: betAddress,
         title: _title,
-        ticker: '',
+        ticker: decodedSymbol,
         description: _resolutionCriteria,
-        type: 'other',
-        category: 'CRYPTO', // unknown here; override from fallback if present
-        identifier: '',
+        sideAName: _sideAName,
+        sideBName: _sideBName,
+        type: mType,
+        category,
+        identifier,
         deadline: Number(_endDate),
-        resolutionSource: '',
-        resolutionRule: '',
+        deadlineDate: new Date(Number(_endDate) * 1000).toISOString(),
+        resolutionSource: "",
+        resolutionRule: "",
         liquidity: 0,
         volume: totals.volume,
         state: status,
@@ -196,33 +197,12 @@ async function fetchMarketInfo(betAddress: `0x${string}`, fallback?: MarketData)
 
 // Fetch markets by status (factory -> addresses -> per-bet info)
 export async function fetchMarketsByStatus(status: MarketState): Promise<MarketData[]> {
-    const useStub = isFactoryStubbed() || isBetStubbed();
-    if (useStub) {
-        await delay(STUB_DELAY_MS);
-        return MOCK_MARKETS.filter((m) => m.state === status);
-    }
-
     const addresses = await fetchBetAddressesByStatus(status);
     const markets = await Promise.all(
-        addresses.map(async (addr) => {
-            const fallback = MOCK_MARKETS.find((m) => m.contractId.toLowerCase() === addr.toLowerCase());
-            const m = await fetchMarketInfo(addr, fallback);
-            // preserve known fields from fallback when available
-            if (fallback) {
-                return {
-                    ...m,
-                    id: fallback.id,
-                    type: fallback.type,
-                    category: fallback.category,
-                    identifier: fallback.identifier,
-                    resolutionSource: fallback.resolutionSource,
-                    resolutionRule: fallback.resolutionRule,
-                    deadlinePrice: fallback.deadlinePrice ?? m.deadlinePrice,
-                    liquidity: fallback.liquidity ?? m.liquidity,
-                    priceSymbol: fallback.priceSymbol ?? m.priceSymbol
-                };
-            }
-            return m;
+        addresses.map(async (addr, idx) => {
+            const m = await fetchMarketInfo(addr);
+            // ensure stable, non-zero id for UI selection within this status list
+            return { ...m, id: idx + 1 };
         })
     );
     return markets;

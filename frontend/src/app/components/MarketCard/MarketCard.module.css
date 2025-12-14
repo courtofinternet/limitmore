@@ -35,6 +35,19 @@
     gap: var(--spacing-sm);
 }
 
+.headerLeft {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex: 1;
+}
+
+.titleGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .icon {
     font-size: 24px;
 }
@@ -44,6 +57,31 @@
     font-weight: 600;
     line-height: 1.4;
     flex-grow: 1;
+}
+
+.addressRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.addressText {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.copyBtn {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #f9fafb;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #4b5563;
 }
 
 .graphContainer {

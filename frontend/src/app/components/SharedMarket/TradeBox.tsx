@@ -3,7 +3,15 @@ import styles from './TradeBox.module.css';
 import { MarketData, getUserMarketStatus } from '../../../data/markets';
 import { claimRewards, placeBet } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
+import { useToast } from '../../providers/ToastProvider';
 import ConnectWalletPrompt from '../Wallet/ConnectWalletPrompt';
+import { readContract } from 'wagmi/actions';
+import { erc20Abi } from 'viem';
+import { wagmiConfig } from '../../../lib/onchain/wagmiConfig';
+import { baseSepolia } from 'wagmi/chains';
+
+// Base Sepolia USDC contract address
+const USDC_CONTRACT_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const;
 
 interface TradeBoxProps {
     probability: number;
@@ -14,15 +22,52 @@ interface TradeBoxProps {
 const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
     const [amount, setAmount] = useState<string>('');
     const [selectedOutcome, setSelectedOutcome] = useState<'YES' | 'NO'>('YES');
+    const [usdcBalance, setUsdcBalance] = React.useState<bigint | undefined>(undefined);
 
     const { isConnected, walletAddress, connect, isConnecting } = useWallet();
+    const { showToast } = useToast();
+
+    // Fetch USDC balance
+    const fetchUsdcBalance = React.useCallback(async () => {
+        if (!walletAddress || !isConnected) {
+            setUsdcBalance(undefined);
+            return;
+        }
+
+        try {
+            const balance = await readContract(wagmiConfig, {
+                chainId: baseSepolia.id,
+                address: USDC_CONTRACT_ADDRESS,
+                abi: erc20Abi,
+                functionName: 'balanceOf',
+                args: [walletAddress as `0x${string}`]
+            });
+            setUsdcBalance(balance);
+        } catch (error) {
+            console.error('Failed to fetch USDC balance:', error);
+            setUsdcBalance(undefined);
+        }
+    }, [walletAddress, isConnected]);
+
+    // Fetch balance when wallet connects/disconnects
+    React.useEffect(() => {
+        fetchUsdcBalance();
+    }, [fetchUsdcBalance]);
 
     // Get user market status only when connected
     const userStatus = market && isConnected && walletAddress ? getUserMarketStatus(market.id, walletAddress) : null;
 
     const handleClaim = async () => {
         if (!market) return;
-        await claimRewards(market.contractId as `0x${string}`);
+        try {
+            await claimRewards(market.contractId as `0x${string}`);
+            showToast('Rewards claimed successfully!', 'success');
+            // Refresh balance after successful claim
+            fetchUsdcBalance();
+        } catch (error) {
+            console.error('Failed to claim rewards:', error);
+            showToast('Failed to claim rewards. Please try again.', 'error');
+        }
     };
 
     const numericAmount = parseFloat(amount) || 0;
@@ -170,9 +215,12 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                     <div className={styles.inputLabel}>
                         <span>❶</span> Enter amount
                         <span className={styles.pctOptions}>
-                            <span onClick={() => setAmount('100')}>10%</span>
-                            <span onClick={() => setAmount('250')}>25%</span>
-                            <span onClick={() => setAmount('500')}>50%</span>
+                            <span onClick={() => setAmount('10')}>10$</span>
+                            <span onClick={() => setAmount('20')}>20$</span>
+                            <span onClick={() => setAmount('50')}>50$</span>
+                            {usdcBalance !== undefined && (
+                                <span onClick={() => setAmount((Number(usdcBalance) / 1e6).toFixed(2))}>Max</span>
+                            )}
                         </span>
                     </div>
                     <div className={styles.amountInputContainer}>
@@ -185,6 +233,16 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                         />
                         <span className={styles.usdcSuffix}>USDC</span>
                     </div>
+                    {usdcBalance !== undefined && (
+                        <div style={{
+                            fontSize: '11px',
+                            color: '#6b7280',
+                            marginTop: '4px',
+                            textAlign: 'right'
+                        }}>
+                            Balance: {(Number(usdcBalance) / 1e6).toFixed(2)} USDC
+                        </div>
+                    )}
                     <div className={styles.slippage}>
                         <span>Slippage Tolerance 5%</span>
                         <span>⌄</span>
@@ -201,7 +259,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                             onClick={() => setSelectedOutcome('YES')}
                         >
                             <div>
-                                <div>YES {probability.toFixed(1)}%</div>
+                                <div>{market?.sideAName ?? 'YES'} {probability.toFixed(1)}%</div>
                                 <div className={styles.outcomeSubtext}>To Win {selectedOutcome === 'YES' ? potentialPayout : '0'} USDC</div>
                             </div>
                             {selectedOutcome === 'YES' && <span>Do it</span>}
@@ -211,7 +269,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                             onClick={() => setSelectedOutcome('NO')}
                         >
                             <div>
-                                <div>NO {(100 - probability).toFixed(1)}%</div>
+                                <div>{market?.sideBName ?? 'NO'} {(100 - probability).toFixed(1)}%</div>
                                 <div className={styles.outcomeSubtext}>To Win {selectedOutcome === 'NO' ? potentialPayout : '0'} USDC</div>
                             </div>
                             {selectedOutcome === 'NO' && <span>Do it</span>}
@@ -224,13 +282,28 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                     onClick={async () => {
                         if (!market) return;
                         if (!isConnected) {
-                            await connect();
+                            try {
+                                await connect();
+                            } catch (error) {
+                                console.error('Failed to connect wallet:', error);
+                                showToast('Failed to connect wallet. Please try again.', 'error');
+                            }
                             return;
                         }
-                        await placeBet(market.contractId as `0x${string}`, selectedOutcome, numericAmount > 0 ? numericAmount : 0);
+                        try {
+                            await placeBet(market.contractId as `0x${string}`, selectedOutcome, numericAmount > 0 ? numericAmount : 0);
+                            showToast('Bet placed successfully!', 'success');
+                            // Refresh balance after successful bet
+                            fetchUsdcBalance();
+                        } catch (error) {
+                            console.error('Failed to place bet:', error);
+                            showToast('Failed to place bet. Please try again.', 'error');
+                        }
                     }}
                 >
-                    {isConnecting ? 'Connecting...' : `Buy ${selectedOutcome} for ${numericAmount > 0 ? numericAmount : '0'} USDC`}
+                    {isConnecting
+                        ? 'Connecting...'
+                        : `Buy ${selectedOutcome === 'YES' ? (market?.sideAName ?? 'YES') : (market?.sideBName ?? 'NO')} for ${numericAmount > 0 ? numericAmount : '0'} USDC`}
                 </button>
             </>
         );
