@@ -41,6 +41,9 @@ export default function MarketPage() {
                     if (found) break;
                 }
                 if (!cancelled) setMarket(found);
+            } catch (error) {
+                console.error('Error loading market:', error);
+                if (!cancelled) setMarket(null);
             } finally {
                 if (!cancelled) setLoading(false);
             }
