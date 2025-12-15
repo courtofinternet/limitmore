@@ -9,6 +9,7 @@ import { fetchAllMarkets } from '../../lib/onchain/reads';
 import { createBet, resolveBet, setCreatorApproval } from '../../lib/onchain/adminWrites';
 import { MarketData } from '../../data/markets';
 import { encodeAbiParameters, parseAbiParameters } from 'viem';
+import { formatResolutionDate } from '../../utils/formatters';
 
 const AdminPage: React.FC = () => {
     const router = useRouter();
@@ -174,7 +175,7 @@ const AdminPage: React.FC = () => {
                                     <div key={m.contractId || m.id || idx} className={styles.marketRow}>
                                         <div className={styles.marketMeta}>
                                             <div style={{ fontWeight: 700 }}>{m.title}</div>
-                                            <div className={styles.muted}>Deadline: {new Date(deadline * 1000).toLocaleString()}</div>
+                                            <div className={styles.muted}>Deadline: {formatResolutionDate(deadline) ?? '—'}</div>
                                             <div className={styles.muted}>State: {m.state}</div>
                                         </div>
                                         <button
