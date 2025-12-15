@@ -5,6 +5,10 @@ import { readContract } from 'wagmi/actions';
 import { erc20Abi } from 'viem';
 import { wagmiConfig } from '../../../lib/onchain/wagmiConfig';
 import { baseSepolia } from 'wagmi/chains';
+import DisconnectIcon from '../Shared/DisconnectIcon';
+import TopUpIcon from '../Shared/TopUpIcon';
+import InfoIcon from '../Shared/InfoIcon';
+import Tooltip from '../Shared/Tooltip';
 
 // Base Sepolia USDC contract address
 const USDC_CONTRACT_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const;
@@ -17,6 +21,10 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
     const { isConnected, walletAddress, isConnecting, connect, disconnect } = useWallet();
     const [usdcBalance, setUsdcBalance] = React.useState<bigint | undefined>(undefined);
+    const [walletDropdownOpen, setWalletDropdownOpen] = React.useState(false);
+    const [balanceDropdownOpen, setBalanceDropdownOpen] = React.useState(false);
+    const walletRef = React.useRef<HTMLDivElement>(null);
+    const balanceRef = React.useRef<HTMLDivElement>(null);
 
     const shortAddress = walletAddress
         ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
@@ -49,6 +57,40 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
         fetchUsdcBalance();
     }, [fetchUsdcBalance]);
 
+    // Memoized handlers to prevent re-render loops
+    const handleBalanceClick = React.useCallback(() => {
+        setBalanceDropdownOpen(prev => !prev);
+    }, []);
+
+    const handleWalletClick = React.useCallback(() => {
+        setWalletDropdownOpen(prev => !prev);
+    }, []);
+
+    const handleDisconnect = React.useCallback(() => {
+        disconnect();
+        setWalletDropdownOpen(false);
+    }, [disconnect]);
+
+    const handleTopUp = React.useCallback(() => {
+        window.open('https://faucet.circle.com/', '_blank');
+        setBalanceDropdownOpen(false);
+    }, []);
+
+    // Close dropdowns when clicking outside
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (walletRef.current && !walletRef.current.contains(event.target as Node)) {
+                setWalletDropdownOpen(false);
+            }
+            if (balanceRef.current && !balanceRef.current.contains(event.target as Node)) {
+                setBalanceDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     return (
         <header className={styles.header}>
             <div className={styles.left}>
@@ -71,20 +113,106 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
             </div>
             <div className={styles.right}>
                 {isConnected && usdcBalance !== undefined && (
-                    <div style={{
-                        fontSize: '14px',
-                        color: '#6b7280',
-                        marginRight: '16px',
-                        display: 'flex',
-                        alignItems: 'center'
-                    }}>
-                        {(Number(usdcBalance) / 1e6).toFixed(2)} USDC
+                    <div ref={balanceRef} style={{ position: 'relative', marginRight: '16px' }}>
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: '1px solid #e5e7eb',
+                                backgroundColor: '#f9fafb',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                color: '#374151',
+                                transition: 'all 0.15s',
+                                minWidth: 'fit-content'
+                            }}
+                            onClick={handleBalanceClick}
+                        >
+                            {(Number(usdcBalance) / 1e6).toFixed(2)} USDC
+                            <Tooltip content="USDC on Base Sepolia Testnet">
+                                <div style={{ marginLeft: '6px', color: '#9ca3af', display: 'flex' }}>
+                                    <InfoIcon size={12} />
+                                </div>
+                            </Tooltip>
+                        </div>
+                        {balanceDropdownOpen && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: '4px',
+                                backgroundColor: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                zIndex: 50,
+                                minWidth: '160px'
+                            }}>
+                                <button
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        borderRadius: '8px'
+                                    }}
+                                    onClick={handleTopUp}
+                                >
+                                    <TopUpIcon size={16} />
+                                    <span style={{ marginLeft: '8px' }}>Top up wallet</span>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
                 {isConnected ? (
-                    <button className={styles.walletButton} onClick={disconnect}>
-                        {shortAddress}
-                    </button>
+                    <div ref={walletRef} style={{ position: 'relative' }}>
+                        <button
+                            className={styles.walletButton}
+                            onClick={handleWalletClick}
+                        >
+                            {shortAddress}
+                        </button>
+                        {walletDropdownOpen && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                marginTop: '4px',
+                                backgroundColor: 'white',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                                zIndex: 50,
+                                minWidth: '140px'
+                            }}>
+                                <button
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        borderRadius: '8px'
+                                    }}
+                                    onClick={handleDisconnect}
+                                >
+                                    <DisconnectIcon size={16} />
+                                    <span style={{ marginLeft: '8px' }}>Disconnect</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 ) : (
                     <button className={styles.walletButton} onClick={connect} disabled={isConnecting}>
                         {isConnecting ? 'Connecting...' : 'Connect Wallet'}

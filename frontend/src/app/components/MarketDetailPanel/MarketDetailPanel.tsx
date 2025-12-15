@@ -39,7 +39,6 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
 }) => {
     const { showToast } = useToast();
     const panelRef = React.useRef<HTMLDivElement>(null);
-    const initialStatusRef = React.useRef<string | null>(null);
     // Use market data or fall back to legacy props
     const marketTitle = market?.title || legacyTitle;
     const probability = market ? market.probYes * 100 : legacyProbability;
@@ -62,21 +61,6 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
         await claimRewards(market.contractId as `0x${string}`);
     };
 
-    // Close panel when market status changes
-    React.useEffect(() => {
-        const currentStatus = market?.state;
-
-        // Set initial status on first render
-        if (initialStatusRef.current === null && currentStatus) {
-            initialStatusRef.current = currentStatus;
-            return;
-        }
-
-        // If status changed from initial, close panel
-        if (initialStatusRef.current && currentStatus && initialStatusRef.current !== currentStatus) {
-            onClose();
-        }
-    }, [market?.state, onClose]);
 
     // Close panel when clicking outside (but not on navigation elements)
     React.useEffect(() => {
@@ -115,7 +99,8 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
 
     // Finalized markets: minimalist summary + position
     if (market?.state === 'RESOLVED' || market?.state === 'UNDETERMINED') {
-        const outcomeYes = market.resolvedOutcome === 'YES';
+        const isUndetermined = market?.state === 'UNDETERMINED';
+        const outcomeYes = !isUndetermined && market.resolvedOutcome === 'YES';
         const position = userStatus?.position;
         const userWon = userStatus?.userWon ?? false;
         const potentialWinnings = userStatus?.potentialWinnings ?? 0;
@@ -158,7 +143,7 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                     <div className={styles.hero}>
                         <div className={styles.heroTitleRow}>
                             <h2 className={styles.heroTitle}>{marketTitle}</h2>
-                            {market.state === 'UNDETERMINED' ? (
+                            {isUndetermined ? (
                                 <span className={`${styles.pill} ${styles.pillNeutral}`}>
                                     Undetermined
                                 </span>
@@ -446,7 +431,7 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                 {/* Volume Stats */}
                 <div className={styles.volumeRow}>
                     <span>↗ Volume {formatVolume(volume)}</span>
-                    <span>Value 1.00 USDC ⓘ</span>
+                    <span>Min bet 1.00 USDC</span>
                 </div>
 
                 {/* TradeBox with market state support */}
