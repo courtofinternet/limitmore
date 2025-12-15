@@ -244,8 +244,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                         </div>
                     )}
                     <div className={styles.slippage}>
-                        <span>Slippage Tolerance 5%</span>
-                        <span>⌄</span>
+                        <span>Min. bet: 1.00 USDC</span>
                     </div>
                 </div>
 

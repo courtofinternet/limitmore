@@ -75,16 +75,12 @@ export default function MarketsPage() {
     const currentMarkets: MarketData[] = marketsByState[activeMarketState] || [];
 
     // Find selected market: first try current state, then check other states, finally use stored data
-    const findSelectedMarket = (): MarketData | null => {
+    const selectedMarket = React.useMemo((): MarketData | null => {
         if (!selectedMarketId) return null;
 
         // First try to find in current state (for updated data)
         const currentStateMarket = currentMarkets.find(m => m.id === selectedMarketId);
         if (currentStateMarket) {
-            // Update stored data with latest version
-            if (selectedMarketData?.contractId !== currentStateMarket.contractId) {
-                setSelectedMarketData(currentStateMarket);
-            }
             return currentStateMarket;
         }
 
@@ -96,8 +92,6 @@ export default function MarketsPage() {
                         m => m.contractId === selectedMarketData.contractId
                     );
                     if (marketInOtherState) {
-                        // Update stored data with latest version from other state
-                        setSelectedMarketData(marketInOtherState);
                         return marketInOtherState;
                     }
                 }
@@ -106,9 +100,16 @@ export default function MarketsPage() {
 
         // Fall back to stored market data (maintains panel persistence)
         return selectedMarketData;
-    };
+    }, [selectedMarketId, currentMarkets, selectedMarketData, marketsByState, activeMarketState]);
 
-    const selectedMarket = findSelectedMarket();
+    // Update stored market data when we find the market in current state
+    React.useEffect(() => {
+        if (selectedMarket && selectedMarket.id === selectedMarketId) {
+            if (!selectedMarketData || selectedMarketData.contractId !== selectedMarket.contractId) {
+                setSelectedMarketData(selectedMarket);
+            }
+        }
+    }, [selectedMarket, selectedMarketId, selectedMarketData]);
 
     const filteredMarkets = currentMarkets.filter(market => {
         // Map UI category labels to contract enums
@@ -209,7 +210,7 @@ export default function MarketsPage() {
                                         router.push(`/markets/${selectedMarket.contractId}`);
                                     }
                                 }}
-                                market={selectedMarket}
+                                market={selectedMarket || undefined}
                             />
                         )}
                     </div>

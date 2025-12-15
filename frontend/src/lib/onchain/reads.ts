@@ -202,7 +202,7 @@ export async function fetchMarketsByStatus(status: MarketState): Promise<MarketD
         addresses.map(async (addr, idx) => {
             const m = await fetchMarketInfo(addr);
             // ensure stable, non-zero id for UI selection within this status list
-            return { ...m, id: idx + 1 };
+            return { ...m, id: String(idx + 1) };
         })
     );
     return markets;

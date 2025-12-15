@@ -49,4 +49,4 @@ export function getUserMarketStatus(_marketId?: string, _wallet?: string): UserM
     return null;
 }
 
-export { resolveMarket, claimRewards, placeBet } from '../lib/onchain/writes';
+export { claimRewards, placeBet } from '../lib/onchain/writes';

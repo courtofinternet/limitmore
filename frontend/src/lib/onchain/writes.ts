@@ -92,3 +92,4 @@ export async function claimRewards(betAddress: `0x${string}`): Promise<void> {
         args: []
     });
 }
+
