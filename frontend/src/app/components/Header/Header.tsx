@@ -9,9 +9,7 @@ import DisconnectIcon from '../Shared/DisconnectIcon';
 import TopUpIcon from '../Shared/TopUpIcon';
 import InfoIcon from '../Shared/InfoIcon';
 import Tooltip from '../Shared/Tooltip';
-
-// Base Sepolia USDC contract address
-const USDC_CONTRACT_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const;
+import { USDC_ADDRESS } from '../../../lib/constants';
 
 interface HeaderProps {
     onNavigate: (page: 'landing' | 'markets') => void;
@@ -40,7 +38,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
         try {
             const balance = await readContract(wagmiConfig, {
                 chainId: baseSepolia.id,
-                address: USDC_CONTRACT_ADDRESS,
+                address: USDC_ADDRESS,
                 abi: erc20Abi,
                 functionName: 'balanceOf',
                 args: [walletAddress as `0x${string}`]

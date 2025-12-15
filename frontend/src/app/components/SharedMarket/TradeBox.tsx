@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import styles from './TradeBox.module.css';
 import { MarketData, getUserMarketStatus } from '../../../data/markets';
-import { claimRewards, placeBet } from '../../../lib/onchain/writes';
+import { claimRewards, placeBet, approveUsdcUnlimited } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
 import { useToast } from '../../providers/ToastProvider';
+import { useAllowance } from '../../providers/AllowanceProvider';
 import ConnectWalletPrompt from '../Wallet/ConnectWalletPrompt';
 import { readContract } from 'wagmi/actions';
 import { erc20Abi } from 'viem';
 import { wagmiConfig } from '../../../lib/onchain/wagmiConfig';
 import { baseSepolia } from 'wagmi/chains';
-
-// Base Sepolia USDC contract address
-const USDC_CONTRACT_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as const;
+import { USDC_ADDRESS, USDC_MULTIPLIER, FACTORY_ADDRESS } from '../../../lib/constants';
 
 interface TradeBoxProps {
     probability: number;
@@ -23,11 +22,14 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
     const [amount, setAmount] = useState<string>('');
     const [selectedOutcome, setSelectedOutcome] = useState<'YES' | 'NO'>('YES');
     const [usdcBalance, setUsdcBalance] = React.useState<bigint | undefined>(undefined);
+    const [isApproving, setIsApproving] = React.useState(false);
+    const [isPlacingBet, setIsPlacingBet] = React.useState(false);
 
     const { isConnected, walletAddress, connect, isConnecting } = useWallet();
     const { showToast } = useToast();
+    const { needsApproval, refetchAllowance } = useAllowance();
 
-    // Fetch USDC balance
+    // Fetch USDC balance only (allowance is now handled by context)
     const fetchUsdcBalance = React.useCallback(async () => {
         if (!walletAddress || !isConnected) {
             setUsdcBalance(undefined);
@@ -37,7 +39,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
         try {
             const balance = await readContract(wagmiConfig, {
                 chainId: baseSepolia.id,
-                address: USDC_CONTRACT_ADDRESS,
+                address: USDC_ADDRESS,
                 abi: erc20Abi,
                 functionName: 'balanceOf',
                 args: [walletAddress as `0x${string}`]
@@ -70,9 +72,53 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
         }
     };
 
+    const handleApproval = async () => {
+        if (!walletAddress || !isConnected) return;
+
+        setIsApproving(true);
+        try {
+            await approveUsdcUnlimited(FACTORY_ADDRESS as `0x${string}`);
+
+            // Success: Show immediate feedback and refresh allowance
+            showToast('USDC approval successful! You can now place bets.', 'success');
+
+            // Immediately refresh allowance for instant UI update
+            await refetchAllowance();
+
+        } catch (error: any) {
+            console.error('Failed to approve USDC:', error);
+
+            // Better error handling: distinguish user cancellation from other errors
+            const errorMessage = error?.message?.toLowerCase() || '';
+            const errorCode = error?.code;
+
+            if (
+                errorCode === 4001 || // MetaMask user rejection
+                errorCode === 'ACTION_REJECTED' || // Ethers user rejection
+                errorMessage.includes('user rejected') ||
+                errorMessage.includes('cancelled') ||
+                errorMessage.includes('canceled') ||
+                errorMessage.includes('declined') ||
+                errorMessage.includes('denied')
+            ) {
+                // User cancelled - no scary error message
+                showToast('Approval cancelled. You can try again when ready.', 'info');
+            } else {
+                // Actual error - show helpful message
+                showToast('Approval failed. Please check your wallet and try again.', 'error');
+            }
+        } finally {
+            setIsApproving(false);
+        }
+    };
+
     const numericAmount = parseFloat(amount) || 0;
     const outcomePrice = selectedOutcome === 'YES' ? probability / 100 : (100 - probability) / 100;
     const potentialPayout = numericAmount > 0 ? (numericAmount / outcomePrice).toFixed(2) : '0';
+
+    // Allowance check comes from context, only need to check balance
+    const amountInUnits = BigInt(Math.floor(numericAmount * USDC_MULTIPLIER));
+    const insufficientBalance = usdcBalance ? usdcBalance < amountInUnits : false;
 
     // Handle different market states
     if (market) {
@@ -219,7 +265,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                             <span onClick={() => setAmount('20')}>20$</span>
                             <span onClick={() => setAmount('50')}>50$</span>
                             {usdcBalance !== undefined && (
-                                <span onClick={() => setAmount((Number(usdcBalance) / 1e6).toFixed(2))}>Max</span>
+                                <span onClick={() => setAmount((Number(usdcBalance) / USDC_MULTIPLIER).toFixed(2))}>Max</span>
                             )}
                         </span>
                     </div>
@@ -240,12 +286,9 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                             marginTop: '4px',
                             textAlign: 'right'
                         }}>
-                            Balance: {(Number(usdcBalance) / 1e6).toFixed(2)} USDC
+                            Balance: {(Number(usdcBalance) / USDC_MULTIPLIER).toFixed(2)} USDC
                         </div>
                     )}
-                    <div className={styles.slippage}>
-                        <span>Min. bet: 1.00 USDC</span>
-                    </div>
                 </div>
 
                 <div className={styles.inputGroup}>
@@ -276,34 +319,88 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                     </div>
                 </div>
 
-                <button
-                    className={styles.payoutButton}
-                    onClick={async () => {
-                        if (!market) return;
-                        if (!isConnected) {
-                            try {
-                                await connect();
-                            } catch (error) {
-                                console.error('Failed to connect wallet:', error);
-                                showToast('Failed to connect wallet. Please try again.', 'error');
+                {/* Show insufficient balance message */}
+                {insufficientBalance && numericAmount > 0 && (
+                    <button
+                        className={styles.payoutButton}
+                        disabled
+                        style={{ backgroundColor: '#ef4444', border: '1px solid #ef4444', opacity: 0.7 }}
+                    >
+                        Insufficient USDC Balance
+                    </button>
+                )}
+
+                {/* Show approval button if approval is needed */}
+                {needsApproval && !insufficientBalance && (
+                    <button
+                        className={styles.payoutButton}
+                        onClick={handleApproval}
+                        disabled={isApproving}
+                        style={{ backgroundColor: '#f59e0b', border: '1px solid #f59e0b' }}
+                    >
+                        {isApproving ? 'Check your wallet to approve...' : 'Approve USDC to place bets'}
+                    </button>
+                )}
+
+                {/* Show place bet button if no approval needed */}
+                {!needsApproval && !insufficientBalance && (
+                    <button
+                        className={styles.payoutButton}
+                        onClick={async () => {
+                            if (!market) return;
+                            if (!isConnected) {
+                                try {
+                                    await connect();
+                                } catch (error) {
+                                    console.error('Failed to connect wallet:', error);
+                                    showToast('Failed to connect wallet. Please try again.', 'error');
+                                }
+                                return;
                             }
-                            return;
-                        }
-                        try {
-                            await placeBet(market.contractId as `0x${string}`, selectedOutcome, numericAmount > 0 ? numericAmount : 0);
-                            showToast('Bet placed successfully!', 'success');
-                            // Refresh balance after successful bet
-                            fetchUsdcBalance();
-                        } catch (error) {
-                            console.error('Failed to place bet:', error);
-                            showToast('Failed to place bet. Please try again.', 'error');
-                        }
-                    }}
-                >
-                    {isConnecting
-                        ? 'Connecting...'
-                        : `Buy ${selectedOutcome === 'YES' ? (market?.sideAName ?? 'YES') : (market?.sideBName ?? 'NO')} for ${numericAmount > 0 ? numericAmount : '0'} USDC`}
-                </button>
+
+                            setIsPlacingBet(true);
+                            try {
+                                await placeBet(market.contractId as `0x${string}`, selectedOutcome, numericAmount > 0 ? numericAmount : 0);
+                                showToast(`Bet placed successfully! ${numericAmount} USDC on ${selectedOutcome}.`, 'success');
+                                // Refresh balance after successful bet
+                                await fetchUsdcBalance();
+                                // Clear the amount input after successful bet
+                                setAmount('');
+                            } catch (error: any) {
+                                console.error('Failed to place bet:', error);
+
+                                // Better error handling for bet placement
+                                const errorMessage = error?.message?.toLowerCase() || '';
+                                const errorCode = error?.code;
+
+                                if (
+                                    errorCode === 4001 ||
+                                    errorCode === 'ACTION_REJECTED' ||
+                                    errorMessage.includes('user rejected') ||
+                                    errorMessage.includes('cancelled') ||
+                                    errorMessage.includes('canceled') ||
+                                    errorMessage.includes('declined') ||
+                                    errorMessage.includes('denied')
+                                ) {
+                                    // User cancelled - friendly message
+                                    showToast('Bet cancelled. You can try again when ready.', 'info');
+                                } else {
+                                    // Actual error - helpful message
+                                    showToast('Failed to place bet. Please check your wallet and try again.', 'error');
+                                }
+                            } finally {
+                                setIsPlacingBet(false);
+                            }
+                        }}
+                        disabled={isPlacingBet || numericAmount <= 0}
+                    >
+                        {isConnecting
+                            ? 'Connecting wallet...'
+                            : isPlacingBet
+                            ? 'Check your wallet to confirm...'
+                            : `Buy ${selectedOutcome === 'YES' ? (market?.sideAName ?? 'YES') : (market?.sideBName ?? 'NO')} for ${numericAmount > 0 ? numericAmount : '0'} USDC`}
+                    </button>
+                )}
             </>
         );
     }

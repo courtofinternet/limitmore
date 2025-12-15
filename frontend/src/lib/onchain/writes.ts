@@ -1,9 +1,10 @@
 // Centralized write helpers for Base chain integration.
 // Replace placeholders with real contract details when ready.
 
-import { Abi, createWalletClient, custom } from 'viem';
+import { Abi, createWalletClient, custom, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
+import { USDC_ADDRESS, FACTORY_ADDRESS, ERC20_ABI, USDC_MULTIPLIER } from '../constants';
 
 const BET_ABI = [
     {
@@ -25,8 +26,6 @@ const BET_ABI = [
     }
 ] as const satisfies Abi;
 
-const FACTORY_ADDRESS =
-    process.env.NEXT_PUBLIC_BET_FACTORY_ADDRESS || '0x0000000000000000000000000000000000000000';
 const FACTORY_ABI = (BetFactoryArtifact as { abi: Abi }).abi as Abi;
 
 // Early return while ABI/address are placeholders to avoid throwing
@@ -56,6 +55,13 @@ async function getWalletClient() {
     return { client, account: account as `0x${string}` };
 }
 
+function getPublicClient() {
+    return createPublicClient({
+        chain: baseSepolia,
+        transport: http('https://sepolia.base.org')
+    });
+}
+
 export async function placeBet(betAddress: `0x${string}`, outcome: 'YES' | 'NO', amount: number): Promise<void> {
     if (isStubbed()) {
         return;
@@ -65,7 +71,7 @@ export async function placeBet(betAddress: `0x${string}`, outcome: 'YES' | 'NO',
         throw new Error('Factory address/ABI not configured. Cannot place bet.');
     }
 
-    const amountInUnits = BigInt(Math.floor(amount * 1_000_000)); // assuming 6 decimals for USDC
+    const amountInUnits = BigInt(Math.floor(amount * USDC_MULTIPLIER));
     const { client, account } = await getWalletClient();
     await client.writeContract({
         chain: baseSepolia,
@@ -91,5 +97,58 @@ export async function claimRewards(betAddress: `0x${string}`): Promise<void> {
         functionName: 'claim',
         args: []
     });
+}
+
+// USDC Approval Functions
+
+export async function checkUsdcAllowance(userAddress: `0x${string}`, spenderAddress: `0x${string}`): Promise<bigint> {
+    const publicClient = getPublicClient();
+    const allowance = await publicClient.readContract({
+        address: USDC_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'allowance',
+        args: [userAddress, spenderAddress]
+    });
+    return allowance as bigint;
+}
+
+export async function checkUsdcBalance(userAddress: `0x${string}`): Promise<bigint> {
+    const publicClient = getPublicClient();
+    const balance = await publicClient.readContract({
+        address: USDC_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [userAddress]
+    });
+    return balance as bigint;
+}
+
+export async function approveUsdcUnlimited(spenderAddress: `0x${string}`): Promise<void> {
+    const { client, account } = await getWalletClient();
+    const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+
+    await client.writeContract({
+        chain: baseSepolia,
+        account,
+        address: USDC_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [spenderAddress, maxUint256]
+    });
+}
+
+export async function isLegitBet(betAddress: `0x${string}`): Promise<boolean> {
+    if (!isFactoryConfigured()) {
+        throw new Error('Factory address/ABI not configured. Cannot validate bet.');
+    }
+
+    const publicClient = getPublicClient();
+    const result = await publicClient.readContract({
+        address: FACTORY_ADDRESS as `0x${string}`,
+        abi: FACTORY_ABI,
+        functionName: 'isLegitBet',
+        args: [betAddress]
+    });
+    return result as boolean;
 }
 
