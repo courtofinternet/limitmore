@@ -2,11 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: __dirname,
-  experimental: {
-    outputFileTracingIncludes: {
-      '/**/*': ['./node_modules/source-map/**/*']
-    }
-  },
   transpilePackages: [
     "@privy-io/react-auth",
     "@reown/appkit",
