@@ -60,18 +60,24 @@ function computeProb(totalA: number, totalB: number) {
 // Fetch bet addresses for a given status from factory
 export async function fetchBetAddressesByStatus(status: MarketState): Promise<`0x${string}`[]> {
     if (isFactoryStubbed()) {
-        throw new Error('Factory address/ABI not configured');
+        console.warn('Factory not configured, returning empty list');
+        return [];
     }
 
-    const raw = await readContract(wagmiConfig, {
-        chainId: baseSepolia.id,
-        address: FACTORY_ADDRESS as `0x${string}`,
-        abi: FACTORY_ABI,
-        functionName: 'getBetsByStatus',
-        args: [Number(Object.entries(StatusMap).find(([, v]) => v === status)?.[0] ?? 0)]
-    });
+    try {
+        const raw = await readContract(wagmiConfig, {
+            chainId: baseSepolia.id,
+            address: FACTORY_ADDRESS as `0x${string}`,
+            abi: FACTORY_ABI,
+            functionName: 'getBetsByStatus',
+            args: [Number(Object.entries(StatusMap).find(([, v]) => v === status)?.[0] ?? 0)]
+        });
 
-    return raw as `0x${string}`[];
+        return raw as `0x${string}`[];
+    } catch (error) {
+        console.error(`Error fetching bets for status ${status}:`, error);
+        return [];
+    }
 }
 
 // Fetch a single market info from its contract
@@ -136,7 +142,6 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
     const resolutionTypeNum = Number(resolutionTypeCode ?? 0);
     let decodedSymbol = "";
     let decodedName = "";
-    const rawLen = (resolutionDataBytes as string)?.length || 0;
     const hasContent = typeof resolutionDataBytes === "string" && resolutionDataBytes.length > 2;
     if (hasContent) {
         try {
@@ -202,7 +207,7 @@ export async function fetchMarketsByStatus(status: MarketState): Promise<MarketD
         addresses.map(async (addr, idx) => {
             const m = await fetchMarketInfo(addr);
             // ensure stable, non-zero id for UI selection within this status list
-            return { ...m, id: idx + 1 };
+            return { ...m, id: String(idx + 1) };
         })
     );
     return markets;

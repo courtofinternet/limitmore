@@ -43,12 +43,24 @@ export const formatCountdown = (timeLeftMs: number): string => {
 
 export const formatDeadlineDateTime = (deadlineSeconds: number): string => {
     const date = new Date(deadlineSeconds * 1000);
+
+    // Debug logging to see what timezone is being detected
+    if (typeof window !== 'undefined') {
+        console.debug('[formatDeadlineDateTime] Timezone info:', {
+            detectedTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            timezoneOffset: date.getTimezoneOffset(),
+            utcTime: date.toISOString(),
+            localTime: date.toLocaleString()
+        });
+    }
+
     return date.toLocaleString(undefined, {
         month: 'short',
         day: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZoneName: 'short'
     });
 };
 
@@ -71,14 +83,40 @@ export const formatResolutionDate = (deadline?: number | string): string | null 
         ms = deadline * 1000;
     }
     if (ms === null) return null;
+
     const date = new Date(ms);
+
+    // Debug logging to see what timezone is being detected
+    if (typeof window !== 'undefined') {
+        console.debug('[formatResolutionDate] Timezone info:', {
+            detectedTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            timezoneOffset: date.getTimezoneOffset(),
+            utcTime: date.toISOString(),
+            localTime: date.toLocaleString()
+        });
+    }
+
     return date.toLocaleString(undefined, {
         month: 'short',
         day: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        second: '2-digit',
-        hour12: false
+        timeZoneName: 'short'
     });
+};
+
+// Generic date formatter with user's local timezone for any timestamp
+export const formatLocalDateTime = (timestampSeconds: number, options?: Intl.DateTimeFormatOptions): string => {
+    const date = new Date(timestampSeconds * 1000);
+    const defaultOptions: Intl.DateTimeFormatOptions = {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short',
+        ...options
+    };
+    return date.toLocaleString(undefined, defaultOptions);
 };

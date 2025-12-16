@@ -88,7 +88,7 @@ export async function createBet(params: {
             params.sideAName,
             params.sideBName,
             BigInt(params.endDate),
-            BigInt(params.resolutionType),
+            params.resolutionType,
             params.resolutionData
         ]
     });

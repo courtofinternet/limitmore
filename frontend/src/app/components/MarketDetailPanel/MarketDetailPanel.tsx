@@ -431,7 +431,6 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                 {/* Volume Stats */}
                 <div className={styles.volumeRow}>
                     <span>↗ Volume {formatVolume(volume)}</span>
-                    <span>Min bet 1.00 USDC</span>
                 </div>
 
                 {/* TradeBox with market state support */}

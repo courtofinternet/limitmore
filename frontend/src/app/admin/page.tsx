@@ -9,6 +9,7 @@ import { fetchAllMarkets } from '../../lib/onchain/reads';
 import { createBet, resolveBet, setCreatorApproval } from '../../lib/onchain/adminWrites';
 import { MarketData } from '../../data/markets';
 import { encodeAbiParameters, parseAbiParameters } from 'viem';
+import { formatResolutionDate } from '../../utils/formatters';
 
 const AdminPage: React.FC = () => {
     const router = useRouter();
@@ -95,14 +96,18 @@ const AdminPage: React.FC = () => {
 
     const visibleMarkets = useMemo(
         () =>
-            markets.sort((a, b) => a.deadline - b.deadline),
+            markets.sort((a, b) => {
+                const aDeadline = typeof a.deadline === 'string' ? parseInt(a.deadline) : a.deadline;
+                const bDeadline = typeof b.deadline === 'string' ? parseInt(b.deadline) : b.deadline;
+                return aDeadline - bDeadline;
+            }),
         [markets]
     );
 
     if (!isConnected || !isOwner) {
         return (
             <>
-                <Header onNavigate={(page) => page === 'landing' ? router.push('/') : router.push('/markets')} currentPage="admin" />
+                <Header onNavigate={(page) => page === 'landing' ? router.push('/') : router.push('/markets')} currentPage="markets" />
                 <div className={styles.page}>
                     <div className={styles.card}>
                         {!isConnected ? (
@@ -120,7 +125,7 @@ const AdminPage: React.FC = () => {
 
     return (
         <>
-            <Header onNavigate={(page) => page === 'landing' ? router.push('/') : router.push('/markets')} currentPage="admin" />
+            <Header onNavigate={(page) => page === 'landing' ? router.push('/') : router.push('/markets')} currentPage="markets" />
             <div className={styles.page}>
                 <div className={styles.card}>
                     <div className={styles.sectionTitle}>Create Bet</div>
@@ -164,12 +169,13 @@ const AdminPage: React.FC = () => {
                     ) : (
                         <div className={styles.list}>
                             {visibleMarkets.map((m, idx) => {
-                                const deadlinePassed = Date.now() >= m.deadline * 1000;
+                                const deadline = typeof m.deadline === 'string' ? parseInt(m.deadline) : m.deadline;
+                                const deadlinePassed = Date.now() >= deadline * 1000;
                                 return (
                                     <div key={m.contractId || m.id || idx} className={styles.marketRow}>
                                         <div className={styles.marketMeta}>
                                             <div style={{ fontWeight: 700 }}>{m.title}</div>
-                                            <div className={styles.muted}>Deadline: {new Date(m.deadline * 1000).toLocaleString()}</div>
+                                            <div className={styles.muted}>Deadline: {formatResolutionDate(deadline) ?? '—'}</div>
                                             <div className={styles.muted}>State: {m.state}</div>
                                         </div>
                                         <button
