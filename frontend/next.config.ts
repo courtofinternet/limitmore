@@ -12,11 +12,11 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://auth.privy.io https://widgets.coingecko.com https://s3.tradingview.com https://*.tradingview.com",
-              "style-src 'self' 'unsafe-inline' https://*.tradingview.com",
+              "style-src 'self' 'unsafe-inline' https://*.tradingview.com https://fonts.googleapis.com",
               "img-src 'self' data: https: https://*.tradingview.com",
               "font-src 'self' https: https://*.tradingview.com",
               "connect-src 'self' https://auth.privy.io https://sepolia.base.org wss: https: https://*.tradingview.com",
-              "frame-src 'self' https://auth.privy.io https://*.tradingview.com https://tradingview-widget.com https://charting-library.tradingview.com https://widget.tradingview.com https://tradingview-embed-widget.com",
+              "frame-src 'self' https://auth.privy.io https://*.tradingview.com https://tradingview-widget.com https://www.tradingview-widget.com https://charting-library.tradingview.com https://widget.tradingview.com https://tradingview-embed-widget.com",
               "frame-ancestors 'self' https://auth.privy.io",
               "worker-src 'self' blob:",
               "object-src 'none'"
