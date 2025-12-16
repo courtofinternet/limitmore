@@ -52,9 +52,9 @@ function computeProb(totalA: number, totalB: number) {
     const vol = totalA + totalB;
     if (vol === 0) return { probYes: 0.5, probNo: 0.5, volume: 0 };
     const probYes = totalA / vol;
-    // Convert volume from wei (6 decimals for USDC) to standard units
-    const volumeInUsdc = vol / 1e6;
-    return { probYes, probNo: 1 - probYes, volume: volumeInUsdc };
+    // Convert volume from wei (6 decimals for USDL) to standard units
+    const volumeInUsdl = vol / 1e6;
+    return { probYes, probNo: 1 - probYes, volume: volumeInUsdl };
 }
 
 // Fetch bet addresses for a given status from factory
@@ -124,7 +124,9 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
         _isResolved,
         _isSideAWinner,
         _totalSideA,
-        _totalSideB
+        _totalSideB,
+        _resolvedPrice,
+        _winnerValue
     ] = info as unknown as [
         string,
         string,
@@ -135,6 +137,8 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
         bigint,
         boolean,
         boolean,
+        bigint,
+        bigint,
         bigint,
         bigint
     ];
@@ -159,11 +163,19 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
     const totals = computeProb(Number(_totalSideA), Number(_totalSideB));
     const status = parseStatus(Number(statusCode));
     let resolvedOutcome: MarketOutcome | undefined = undefined;
+    let finalPrice: number | undefined = undefined;
+
     if (status === "RESOLVED") {
         resolvedOutcome = _isSideAWinner ? "YES" : "NO";
+        // Convert resolvedPrice from contract (divide by 100 to get proper decimal format)
+        finalPrice = Number(_resolvedPrice) / 100;
     }
     if (status === "UNDETERMINED") {
         resolvedOutcome = "INVALID";
+        // For undetermined markets, we might still have a resolved price
+        if (_resolvedPrice && Number(_resolvedPrice) > 0) {
+            finalPrice = Number(_resolvedPrice) / 100;
+        }
     }
 
     const category = resolutionTypeNum === 1 ? "STOCKS" : "CRYPTO";
@@ -191,7 +203,7 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
         volume: totals.volume,
         state: status,
         resolvedOutcome,
-        deadlinePrice: undefined,
+        deadlinePrice: finalPrice,
         priceSymbol: '$',
         probYes: totals.probYes,
         probNo: totals.probNo,

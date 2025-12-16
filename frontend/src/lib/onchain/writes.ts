@@ -4,29 +4,12 @@
 import { Abi, createWalletClient, custom, createPublicClient, http } from 'viem';
 import { baseSepolia } from 'wagmi/chains';
 import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
-import { USDC_ADDRESS, FACTORY_ADDRESS, ERC20_ABI, USDC_MULTIPLIER } from '../constants';
+import { USDL_ADDRESS, FACTORY_ADDRESS, MOCK_USDL_ABI, USDL_MULTIPLIER } from '../constants';
+import BetArtifact from '../contracts/BetCOFI.json';
 
-const BET_ABI = [
-    {
-        type: 'function',
-        name: 'placeBet',
-        stateMutability: 'nonpayable',
-        inputs: [
-            { name: 'onSideA', type: 'bool', internalType: 'bool' },
-            { name: 'amount', type: 'uint256', internalType: 'uint256' }
-        ],
-        outputs: []
-    },
-    {
-        type: 'function',
-        name: 'claim',
-        stateMutability: 'nonpayable',
-        inputs: [],
-        outputs: []
-    }
-] as const satisfies Abi;
 
 const FACTORY_ABI = (BetFactoryArtifact as { abi: Abi }).abi as Abi;
+const BET_ABI = (BetArtifact as { abi: Abi }).abi as Abi;
 
 // Early return while ABI/address are placeholders to avoid throwing
 function isStubbed() {
@@ -71,7 +54,7 @@ export async function placeBet(betAddress: `0x${string}`, outcome: 'YES' | 'NO',
         throw new Error('Factory address/ABI not configured. Cannot place bet.');
     }
 
-    const amountInUnits = BigInt(Math.floor(amount * USDC_MULTIPLIER));
+    const amountInUnits = BigInt(Math.floor(amount * USDL_MULTIPLIER));
     const { client, account } = await getWalletClient();
     await client.writeContract({
         chain: baseSepolia,
@@ -99,41 +82,54 @@ export async function claimRewards(betAddress: `0x${string}`): Promise<void> {
     });
 }
 
-// USDC Approval Functions
+// USDL Token Functions
 
-export async function checkUsdcAllowance(userAddress: `0x${string}`, spenderAddress: `0x${string}`): Promise<bigint> {
+export async function checkUsdlAllowance(userAddress: `0x${string}`, spenderAddress: `0x${string}`): Promise<bigint> {
     const publicClient = getPublicClient();
     const allowance = await publicClient.readContract({
-        address: USDC_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
+        address: USDL_ADDRESS as `0x${string}`,
+        abi: MOCK_USDL_ABI,
         functionName: 'allowance',
         args: [userAddress, spenderAddress]
     });
     return allowance as bigint;
 }
 
-export async function checkUsdcBalance(userAddress: `0x${string}`): Promise<bigint> {
+export async function checkUsdlBalance(userAddress: `0x${string}`): Promise<bigint> {
     const publicClient = getPublicClient();
     const balance = await publicClient.readContract({
-        address: USDC_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
+        address: USDL_ADDRESS as `0x${string}`,
+        abi: MOCK_USDL_ABI,
         functionName: 'balanceOf',
         args: [userAddress]
     });
     return balance as bigint;
 }
 
-export async function approveUsdcUnlimited(spenderAddress: `0x${string}`): Promise<void> {
+export async function approveUsdlUnlimited(spenderAddress: `0x${string}`): Promise<void> {
     const { client, account } = await getWalletClient();
     const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
 
     await client.writeContract({
         chain: baseSepolia,
         account,
-        address: USDC_ADDRESS as `0x${string}`,
-        abi: ERC20_ABI,
+        address: USDL_ADDRESS as `0x${string}`,
+        abi: MOCK_USDL_ABI,
         functionName: 'approve',
         args: [spenderAddress, maxUint256]
+    });
+}
+
+export async function dripUsdl(): Promise<void> {
+    const { client, account } = await getWalletClient();
+
+    await client.writeContract({
+        chain: baseSepolia,
+        account,
+        address: USDL_ADDRESS as `0x${string}`,
+        abi: MOCK_USDL_ABI,
+        functionName: 'drip',
+        args: []
     });
 }
 
@@ -151,4 +147,46 @@ export async function isLegitBet(betAddress: `0x${string}`): Promise<boolean> {
     });
     return result as boolean;
 }
+
+// User bet reading functions
+export async function getUserBets(betAddress: `0x${string}`, userAddress: `0x${string}`): Promise<{ onSideA: number; onSideB: number }> {
+    if (isStubbed()) {
+        return { onSideA: 0, onSideB: 0 };
+    }
+
+    const publicClient = getPublicClient();
+    const result = await publicClient.readContract({
+        address: betAddress,
+        abi: BET_ABI,
+        functionName: 'getUserBets',
+        args: [userAddress]
+    });
+
+    const [onSideA, onSideB] = result as [bigint, bigint];
+    return {
+        onSideA: Number(onSideA) / USDL_MULTIPLIER,
+        onSideB: Number(onSideB) / USDL_MULTIPLIER
+    };
+}
+
+export async function calculateUserWinnings(betAddress: `0x${string}`, userAddress: `0x${string}`): Promise<{ ifSideAWins: number; ifSideBWins: number }> {
+    if (isStubbed()) {
+        return { ifSideAWins: 0, ifSideBWins: 0 };
+    }
+
+    const publicClient = getPublicClient();
+    const result = await publicClient.readContract({
+        address: betAddress,
+        abi: BET_ABI,
+        functionName: 'calculatePotentialWinnings',
+        args: [userAddress]
+    });
+
+    const [ifSideAWins, ifSideBWins] = result as [bigint, bigint];
+    return {
+        ifSideAWins: Number(ifSideAWins) / USDL_MULTIPLIER,
+        ifSideBWins: Number(ifSideBWins) / USDL_MULTIPLIER
+    };
+}
+
 

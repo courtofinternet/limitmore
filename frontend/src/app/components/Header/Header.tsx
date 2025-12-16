@@ -1,15 +1,16 @@
 import React from 'react';
 import styles from './Header.module.css';
 import { useWallet } from '../../providers/WalletProvider';
+import { useToast } from '../../providers/ToastProvider';
 import { readContract } from 'wagmi/actions';
-import { erc20Abi } from 'viem';
 import { wagmiConfig } from '../../../lib/onchain/wagmiConfig';
 import { baseSepolia } from 'wagmi/chains';
 import DisconnectIcon from '../Shared/DisconnectIcon';
 import TopUpIcon from '../Shared/TopUpIcon';
 import InfoIcon from '../Shared/InfoIcon';
 import Tooltip from '../Shared/Tooltip';
-import { USDC_ADDRESS } from '../../../lib/constants';
+import { USDL_ADDRESS, MOCK_USDL_ABI, USDL_MULTIPLIER } from '../../../lib/constants';
+import { dripUsdl } from '../../../lib/onchain/writes';
 
 interface HeaderProps {
     onNavigate: (page: 'landing' | 'markets') => void;
@@ -18,7 +19,9 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
     const { isConnected, walletAddress, isConnecting, connect, disconnect } = useWallet();
-    const [usdcBalance, setUsdcBalance] = React.useState<bigint | undefined>(undefined);
+    const { showToast } = useToast();
+    const [usdlBalance, setUsdlBalance] = React.useState<bigint | undefined>(undefined);
+    const [isDripping, setIsDripping] = React.useState(false);
     const [walletDropdownOpen, setWalletDropdownOpen] = React.useState(false);
     const [balanceDropdownOpen, setBalanceDropdownOpen] = React.useState(false);
     const walletRef = React.useRef<HTMLDivElement>(null);
@@ -28,32 +31,32 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
         ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
         : '';
 
-    // Fetch USDC balance
-    const fetchUsdcBalance = React.useCallback(async () => {
+    // Fetch USDL balance
+    const fetchUsdlBalance = React.useCallback(async () => {
         if (!walletAddress || !isConnected) {
-            setUsdcBalance(undefined);
+            setUsdlBalance(undefined);
             return;
         }
 
         try {
             const balance = await readContract(wagmiConfig, {
                 chainId: baseSepolia.id,
-                address: USDC_ADDRESS,
-                abi: erc20Abi,
+                address: USDL_ADDRESS,
+                abi: MOCK_USDL_ABI,
                 functionName: 'balanceOf',
                 args: [walletAddress as `0x${string}`]
             });
-            setUsdcBalance(balance);
+            setUsdlBalance(balance);
         } catch (error) {
-            console.error('Failed to fetch USDC balance:', error);
-            setUsdcBalance(undefined);
+            console.error('Failed to fetch USDL balance:', error);
+            setUsdlBalance(undefined);
         }
     }, [walletAddress, isConnected]);
 
     // Fetch balance when wallet connects/disconnects
     React.useEffect(() => {
-        fetchUsdcBalance();
-    }, [fetchUsdcBalance]);
+        fetchUsdlBalance();
+    }, [fetchUsdlBalance]);
 
     // Memoized handlers to prevent re-render loops
     const handleBalanceClick = React.useCallback(() => {
@@ -69,10 +72,38 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
         setWalletDropdownOpen(false);
     }, [disconnect]);
 
-    const handleTopUp = React.useCallback(() => {
-        window.open('https://faucet.circle.com/', '_blank');
-        setBalanceDropdownOpen(false);
-    }, []);
+    const handleTopUp = React.useCallback(async () => {
+        setIsDripping(true);
+        try {
+            await dripUsdl();
+            showToast('Successfully received 100 USDL!', 'success');
+            await fetchUsdlBalance(); // Refresh balance
+            setBalanceDropdownOpen(false);
+        } catch (error: any) {
+            console.error('Failed to drip USDL:', error);
+
+            const errorMessage = error?.message?.toLowerCase() || '';
+            const errorCode = error?.code;
+
+            if (
+                errorCode === 4001 ||
+                errorCode === 'ACTION_REJECTED' ||
+                errorMessage.includes('user rejected') ||
+                errorMessage.includes('cancelled') ||
+                errorMessage.includes('canceled') ||
+                errorMessage.includes('declined') ||
+                errorMessage.includes('denied')
+            ) {
+                showToast('Drip cancelled. You can try again when ready.', 'info');
+            } else if (errorMessage.includes('exceeds 24h mint limit')) {
+                showToast('You have reached your daily drip limit. Try again in 24 hours.', 'warning');
+            } else {
+                showToast('Failed to get USDL. Please try again.', 'error');
+            }
+        } finally {
+            setIsDripping(false);
+        }
+    }, [fetchUsdlBalance, showToast]);
 
     // Close dropdowns when clicking outside
     React.useEffect(() => {
@@ -110,7 +141,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                 </nav>
             </div>
             <div className={styles.right}>
-                {isConnected && usdcBalance !== undefined && (
+                {isConnected && usdlBalance !== undefined && (
                     <div ref={balanceRef} style={{ position: 'relative', marginRight: '16px' }}>
                         <div
                             style={{
@@ -129,8 +160,8 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                             }}
                             onClick={handleBalanceClick}
                         >
-                            {(Number(usdcBalance) / 1e6).toFixed(2)} USDC
-                            <Tooltip content="USDC on Base Sepolia Testnet">
+                            {(Number(usdlBalance) / USDL_MULTIPLIER).toFixed(2)} USDL
+                            <Tooltip content="USDL on Base Sepolia Testnet">
                                 <div style={{ marginLeft: '6px', color: '#9ca3af', display: 'flex' }}>
                                     <InfoIcon size={12} />
                                 </div>
@@ -162,9 +193,10 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                                         borderRadius: '8px'
                                     }}
                                     onClick={handleTopUp}
+                                    disabled={isDripping}
                                 >
                                     <TopUpIcon size={16} />
-                                    <span style={{ marginLeft: '8px' }}>Top up wallet</span>
+                                    <span style={{ marginLeft: '8px' }}>{isDripping ? 'Getting USDL...' : 'Get USDL'}</span>
                                 </button>
                             </div>
                         )}

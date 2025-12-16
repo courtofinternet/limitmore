@@ -1,13 +1,14 @@
 import React from 'react';
 import styles from './MarketDetailPanel.module.css';
 import TradeBox from '../SharedMarket/TradeBox';
+import UserBetDisplay from '../SharedMarket/UserBetDisplay';
 import ChartSection from '../SharedMarket/ChartSection';
-import { MarketData, getUserMarketStatus } from '../../../data/markets';
+import { MarketData, getUserMarketStatus, UserMarketStatus } from '../../../data/markets';
 import { claimRewards } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
 import ConnectWalletPrompt from '../Wallet/ConnectWalletPrompt';
 import { useToast } from '../../providers/ToastProvider';
-import { formatUsdcCompact, formatUsdcAmount, formatAddress, formatResolutionDate, formatVolume } from '../../../utils/formatters';
+import { formatUsdlAmount, formatAddress, formatResolutionDate, formatVolume } from '../../../utils/formatters';
 import CopyIcon from '../Shared/CopyIcon';
 import ResolutionRules from '../Shared/ResolutionRules';
 
@@ -50,7 +51,25 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
     const { isConnected, walletAddress } = useWallet();
 
     // Get user status for finalized markets
-    const userStatus = market && isConnected && walletAddress ? getUserMarketStatus(market.id, walletAddress) : null;
+    const [userStatus, setUserStatus] = React.useState<UserMarketStatus | null>(null);
+
+    React.useEffect(() => {
+        const fetchUserStatus = async () => {
+            if (market && isConnected && walletAddress && market.contractId) {
+                try {
+                    const status = await getUserMarketStatus(market.contractId, walletAddress, market);
+                    setUserStatus(status);
+                } catch (error) {
+                    console.error('Error fetching user status:', error);
+                    setUserStatus(null);
+                }
+            } else {
+                setUserStatus(null);
+            }
+        };
+
+        fetchUserStatus();
+    }, [market, isConnected, walletAddress]);
 
     const finalPriceText = market?.deadlinePrice
         ? `${market.priceSymbol ?? ''}${market.deadlinePrice.toLocaleString()}`
@@ -60,7 +79,6 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
         if (!market || !isConnected) return;
         await claimRewards(market.contractId as `0x${string}`);
     };
-
 
     // Close panel when clicking outside (but not on navigation elements)
     React.useEffect(() => {
@@ -97,350 +115,240 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [onClose]);
 
-    // Finalized markets: minimalist summary + position
-    if (market?.state === 'RESOLVED' || market?.state === 'UNDETERMINED') {
-        const isUndetermined = market?.state === 'UNDETERMINED';
-        const outcomeYes = !isUndetermined && market.resolvedOutcome === 'YES';
+    // Shared rendering functions
+    const renderTopBar = () => (
+        <div className={styles.topBar}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+                <button className={styles.backButton} onClick={onClose} style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span>✕</span>
+                    <span>Close</span>
+                </button>
+                {market && (
+                    <button className={styles.backButton} onClick={onFullPage}>⛶ Full page</button>
+                )}
+            </div>
+            <button className={styles.shareButton}>Share</button>
+        </div>
+    );
+
+    const renderMetaRow = () => {
+        const isResolved = market?.state === 'RESOLVED' || market?.state === 'UNDETERMINED';
+        const dateText = isResolved
+            ? `Ended at ${formatResolutionDate(market.deadlineDate ?? market.deadline) ?? '—'}`
+            : `Ends on ${formatResolutionDate(market?.deadlineDate ?? market?.deadline) ?? '—'}`;
+
+        return (
+            <div className={styles.metaRow}>
+                <span>{dateText}</span>
+                {market?.contractId && (
+                    <span className={styles.contractBadge}>
+                        <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
+                        <button
+                            className={styles.copyButton}
+                            onClick={() => {
+                                navigator.clipboard?.writeText(market.contractId);
+                                showToast('Address copied', 'success');
+                            }}
+                            aria-label="Copy contract address"
+                        >
+                            <CopyIcon />
+                        </button>
+                    </span>
+                )}
+            </div>
+        );
+    };
+
+    const renderHero = () => {
+        const state = market?.state || 'ACTIVE';
+        const isUndetermined = state === 'UNDETERMINED';
+
+        let pill;
+        if (state === 'ACTIVE') {
+            pill = <span className={`${styles.pill} ${styles.pillActive}`}>Active</span>;
+        } else if (state === 'RESOLVING') {
+            pill = <span className={`${styles.pill} ${styles.pillResolving}`}>Resolving</span>;
+        } else if (isUndetermined) {
+            pill = <span className={`${styles.pill} ${styles.pillNeutral}`}>Undetermined</span>;
+        } else {
+            pill = <span className={`${styles.pill} ${styles.pillFinalized}`}>Finalized</span>;
+        }
+
+        return (
+            <div className={styles.hero}>
+                <div className={styles.heroTitleRow}>
+                    <h2 className={styles.heroTitle}>{marketTitle}</h2>
+                    {pill}
+                </div>
+            </div>
+        );
+    };
+
+    const renderProgressBar = () => (
+        <div className={styles.progressBarContainer}>
+            <div className={styles.probabilityText}>
+                <span style={{ color: '#f97316' }}>{market?.sideAName ?? 'Side A'} {probability.toFixed(1)}%</span>
+                <span style={{ color: '#71717a' }}>{market?.sideBName ?? 'Side B'} {(100 - probability).toFixed(1)}%</span>
+            </div>
+            <div className={styles.barBackground}>
+                <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
+            </div>
+        </div>
+    );
+
+    const renderFinishedMarketPosition = () => {
         const position = userStatus?.position;
         const userWon = userStatus?.userWon ?? false;
         const potentialWinnings = userStatus?.potentialWinnings ?? 0;
 
         return (
-            <div className={styles.panel} ref={panelRef}>
-                <div className={styles.scrollContainer}>
-                    <div className={styles.topBar}>
-                        <button className={styles.backButton} onClick={onClose}>
-                            <span>✕</span> Close
-                        </button>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className={styles.backButton} onClick={onFullPage}>⛶ Full page</button>
-                            <button className={styles.shareButton}>Share</button>
-                        </div>
-                    </div>
+            <div className={styles.section}>
+                <div className={styles.sectionHeaderRow}>
+                    <h3 className={styles.sectionTitleMinimal}>Your position</h3>
+                </div>
 
-                    {/* Metadata for resolved markets */}
-                    <div className={styles.metaRow}>
-                        <span>
-                            Ended at {formatResolutionDate(market.deadlineDate ?? market.deadline) ?? '—'}
-                        </span>
-                        {market.contractId && (
-                            <span className={styles.contractBadge}>
-                                <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
-                                <button
-                                    className={styles.copyButton}
-                                    onClick={() => {
-                                        navigator.clipboard?.writeText(market.contractId);
-                                        showToast('Address copied', 'success');
-                                    }}
-                                    aria-label="Copy contract address"
-                                >
-                                    <CopyIcon />
-                                </button>
-                            </span>
-                        )}
-                    </div>
-
-                    <div className={styles.hero}>
-                        <div className={styles.heroTitleRow}>
-                            <h2 className={styles.heroTitle}>{marketTitle}</h2>
-                            {isUndetermined ? (
-                                <span className={`${styles.pill} ${styles.pillNeutral}`}>
-                                    Undetermined
-                                </span>
-                            ) : market.resolvedOutcome && (
-                                <span className={`${styles.pill} ${outcomeYes ? styles.pillYes : styles.pillNo}`}>
-                                    {market.resolvedOutcome} won
-                                </span>
-                            )}
-                        </div>
-                        <div className={styles.heroMetaRow}>
-                            <span className={styles.heroMeta}>Market resolved</span>
-                            <span className={styles.heroMeta}>{formatUsdcCompact(volume)} volume</span>
-                        </div>
-                    </div>
-
-                    {/* Progress Bar for resolved markets */}
-                    <div className={styles.progressBarContainer}>
-                        <div className={styles.probabilityText}>
-                            <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
-                            <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
-                        </div>
-                        <div className={styles.barBackground}>
-                            <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
-                        </div>
-                    </div>
-
-                    <div className={styles.section}>
-                        <div className={styles.sectionHeaderRow}>
-                            <h3 className={styles.sectionTitleMinimal}>Your position</h3>
-                        </div>
-
-                        {!isConnected ? (
-                            <ConnectWalletPrompt
-                                align="left"
-                                message="Connect your wallet to start betting."
-                            />
-                        ) : !position ? (
-                            <div className={styles.emptyState}>No position in this market.</div>
-                        ) : (
-                            <div className={styles.positionCard}>
-                                <div className={styles.positionTopRow}>
-                                    <div className={styles.positionBet}>
-                                        {formatUsdcAmount(position.amount)} on {position.outcome}
-                                    </div>
-                                    <span
-                                        className={`${styles.badge} ${
-                                            userWon
-                                                ? position.claimed
-                                                    ? styles.badgeClaimed
-                                                    : styles.badgeWon
-                                                : styles.badgeLost
-                                        }`}
-                                    >
-                                        {userWon ? (position.claimed ? 'Claimed' : 'Won') : 'Lost'}
-                                    </span>
-                                </div>
-
-                                <div className={`${styles.pnl} ${userWon ? styles.pnlWin : styles.pnlLoss}`}>
-                                        {userWon ? `+${formatUsdcAmount(potentialWinnings)}` : `-${formatUsdcAmount(position.amount)}`}
-                                </div>
-
-                                {userWon && (
-                                    <button
-                                        className={`${styles.primaryButton} ${
-                                            position.claimed ? styles.primaryButtonClaimed : styles.primaryButtonShimmer
-                                        }`}
-                                        onClick={position.claimed ? undefined : handleClaim}
-                                    >
-                                        {position.claimed ? 'Claimed' : `Claim ${formatUsdcAmount(potentialWinnings)}`}
-                                    </button>
-                                )}
+                {!isConnected ? (
+                    <ConnectWalletPrompt
+                        align="left"
+                        message="Connect your wallet to start betting."
+                    />
+                ) : !position ? (
+                    <div className={styles.emptyState}>No position in this market.</div>
+                ) : (
+                    <div className={styles.positionCard}>
+                        <div className={styles.positionTopRow}>
+                            <div className={styles.positionBet}>
+                                {formatUsdlAmount(position.amount)} on {position.outcome}
                             </div>
+                            <span
+                                className={`${styles.badge} ${
+                                    userWon
+                                        ? position.claimed
+                                            ? styles.badgeClaimed
+                                            : styles.badgeWon
+                                        : styles.badgeLost
+                                }`}
+                            >
+                                {userWon ? (position.claimed ? 'Claimed' : 'Won') : 'Lost'}
+                            </span>
+                        </div>
+
+                        <div className={`${styles.pnl} ${userWon ? styles.pnlWin : styles.pnlLoss}`}>
+                            {userWon ? `+${formatUsdlAmount(potentialWinnings)}` : `-${formatUsdlAmount(position.amount)}`}
+                        </div>
+
+                        {userWon && (
+                            <button
+                                className={`${styles.primaryButton} ${
+                                    position.claimed ? styles.primaryButtonClaimed : styles.primaryButtonShimmer
+                                }`}
+                                onClick={position.claimed ? undefined : handleClaim}
+                            >
+                                {position.claimed ? 'Claimed' : `Claim ${formatUsdlAmount(potentialWinnings)}`}
+                            </button>
                         )}
                     </div>
-                    
-                    <div className={styles.truthBlock}>
-                        <div className={styles.truthHeader}>Resolution</div>
-                        <div className={styles.truthOutcomeRow}>
+                )}
+            </div>
+        );
+    };
+
+    const renderTruthBlock = () => {
+        const state = market?.state || 'ACTIVE';
+        const isResolved = state === 'RESOLVED' || state === 'UNDETERMINED';
+        const isResolving = state === 'RESOLVING';
+
+        if (!isResolved && !isResolving) return null;
+
+        const outcomeYes = isResolved && market?.resolvedOutcome === 'YES';
+
+        return (
+            <div className={styles.truthBlock}>
+                <div className={styles.truthHeader}>Resolution</div>
+                <div className={styles.truthOutcomeRow}>
+                    {isResolving ? (
+                        <div className={`${styles.truthOutcome} ${styles.truthOutcomeNeutral}`}>
+                            Resolving<span className={styles.truthEllipsis}>...</span>
+                        </div>
+                    ) : (
+                        <>
                             <div
                                 className={`${styles.truthOutcome} ${
                                     outcomeYes
                                         ? styles.truthOutcomeYes
-                                        : market.resolvedOutcome === 'NO'
+                                        : market?.resolvedOutcome === 'NO'
                                             ? styles.truthOutcomeNo
                                             : styles.truthOutcomeNeutral
                                 }`}
                             >
-                                {market.resolvedOutcome ?? '—'}
+                                {market?.resolvedOutcome ?? '—'}
                             </div>
                             <div className={styles.truthValue}>
                                 {finalPriceText ? `Closed at ${finalPriceText}` : 'Value unavailable'}
                             </div>
-                        </div>
-                        <div className={styles.truthMeta}>
-                            <div className={styles.truthMetaItem}>
-                                <span className={styles.truthMetaLabel}>Condition</span>
-                                <span className={styles.truthMetaValue}>{market.description}</span>
-                            </div>
-                            {(market.deadlineDate || market.deadline) && (
-                                <div className={styles.truthMetaItem}>
-                                    <span className={styles.truthMetaLabel}>Resolved on</span>
-                                    <span className={styles.truthMetaValue}>
-                                        {formatResolutionDate(market.deadlineDate ?? market.deadline)}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                        <ResolutionRules market={market} variant="compact" />
+                        </>
+                    )}
                 </div>
-            </div>
-        );
-    }
-
-    // Resolving markets: minimalist pending view
-    if (market?.state === 'RESOLVING') {
-        const position = userStatus?.position;
-
-        return (
-            <div className={styles.panel} ref={panelRef}>
-                <div className={styles.scrollContainer}>
-                    <div className={styles.topBar}>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className={styles.backButton} onClick={onClose}>
-                                <span>✕</span> Close
-                            </button>
-                            <button className={styles.backButton} onClick={onFullPage}>⛶ Full page</button>
-                        </div>
-                        <button className={styles.shareButton}>Share</button>
+                <div className={styles.truthMeta}>
+                    <div className={styles.truthMetaItem}>
+                        <span className={styles.truthMetaLabel}>Condition</span>
+                        <span className={styles.truthMetaValue}>{market?.description || description}</span>
                     </div>
-
-                    {/* Metadata for resolving markets */}
-                    <div className={styles.metaRow}>
-                        <span>
-                            Ends on {formatResolutionDate(market.deadlineDate ?? market.deadline) ?? '—'}
-                        </span>
-                        {market.contractId && (
-                            <span className={styles.contractBadge}>
-                                <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
-                                <button
-                                    className={styles.copyButton}
-                                    onClick={() => {
-                                        navigator.clipboard?.writeText(market.contractId);
-                                        showToast('Address copied', 'success');
-                                    }}
-                                    aria-label="Copy contract address"
-                                >
-                                    <CopyIcon />
-                                </button>
+                    {(market?.deadlineDate || market?.deadline) && (
+                        <div className={styles.truthMetaItem}>
+                            <span className={styles.truthMetaLabel}>
+                                {isResolving ? 'Expected' : 'Resolved on'}
                             </span>
-                        )}
-                    </div>
-
-                    <div className={styles.hero}>
-                        <div className={styles.heroTitleRow}>
-                            <h2 className={styles.heroTitle}>{marketTitle}</h2>
-                            <span className={`${styles.pill} ${styles.pillResolving}`}>Resolving</span>
+                            <span className={styles.truthMetaValue}>
+                                {formatResolutionDate(market.deadlineDate ?? market.deadline)}
+                            </span>
                         </div>
-                        <div className={styles.heroMetaRow}>
-                            <span className={styles.heroMeta}>Trading paused</span>
-                            <span className={styles.heroMeta}>{formatUsdcCompact(volume)} volume</span>
-                        </div>
-                    </div>
-
-                    {/* Progress Bar for resolving markets */}
-                    <div className={styles.progressBarContainer}>
-                        <div className={styles.probabilityText}>
-                            <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
-                            <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
-                        </div>
-                        <div className={styles.barBackground}>
-                            <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
-                        </div>
-                    </div>
-
-                    <div className={styles.section}>
-                        <div className={styles.sectionHeaderRow}>
-                            <h3 className={styles.sectionTitleMinimal}>Your position</h3>
-                        </div>
-
-                        {!isConnected ? (
-                            <ConnectWalletPrompt
-                                align="left"
-                                message="Connect your wallet to start betting."
-                            />
-                        ) : !position ? (
-                            <div className={styles.emptyState}>No position in this market.</div>
-                        ) : (
-                            <div className={styles.positionCard}>
-                                <div className={styles.positionTopRow}>
-                                    <div className={styles.positionBet}>
-                                        {formatUsdcAmount(position.amount)} on {position.outcome}
-                                    </div>
-                                    <span className={`${styles.badge} ${styles.badgePending}`}>Pending</span>
-                                </div>
-                                <div className={styles.pendingNote}>
-                                    Outcome pending. Winnings depend on final resolution.
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className={styles.truthBlock}>
-                        <div className={styles.truthHeader}>Resolution</div>
-                        <div className={styles.truthOutcomeRow}>
-                            <div className={`${styles.truthOutcome} ${styles.truthOutcomeNeutral}`}>
-                                Resolving<span className={styles.truthEllipsis}>...</span>
-                            </div>
-                        </div>
-                        <div className={styles.truthMeta}>
-                            <div className={styles.truthMetaItem}>
-                                <span className={styles.truthMetaLabel}>Condition</span>
-                                <span className={styles.truthMetaValue}>{description}</span>
-                            </div>
-                            {(market.deadlineDate || market.deadline) && (
-                                <div className={styles.truthMetaItem}>
-                                    <span className={styles.truthMetaLabel}>Expected</span>
-                                    <span className={styles.truthMetaValue}>
-                                        {formatResolutionDate(market.deadlineDate ?? market.deadline)}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                        <ResolutionRules market={market} variant="compact" />
+                    )}
                 </div>
             </div>
         );
-    }
+    };
+
+    const state = market?.state || 'ACTIVE';
+
     return (
         <div className={styles.panel} ref={panelRef}>
             <div className={styles.scrollContainer}>
+                {renderTopBar()}
+                {renderMetaRow()}
+                {renderHero()}
+                {renderProgressBar()}
 
-                {/* Header Actions */}
-                <div className={styles.topBar}>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className={styles.backButton} onClick={onClose} style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span>✕</span>
-                            <span>Close</span>
-                        </button>
-                        {market && (
-                            <button className={styles.backButton} onClick={onFullPage}>⛶ Full page</button>
-                        )}
-                    </div>
-                    <button className={styles.shareButton}>Share</button>
-                </div>
-
-                {/* Metadata */}
-                <div className={styles.metaRow}>
-                    <span>
-                        Ends on {formatResolutionDate(market?.deadlineDate ?? market?.deadline) ?? '—'}
-                    </span>
-                    {market?.contractId && (
-                        <span className={styles.contractBadge}>
-                            <span className={styles.addressText}>{formatAddress(market.contractId)}</span>
-                            <button
-                                className={styles.copyButton}
-                                onClick={() => {
-                                    navigator.clipboard?.writeText(market.contractId);
-                                    showToast('Address copied', 'success');
-                                }}
-                                aria-label="Copy contract address"
-                            >
-                                <CopyIcon />
-                            </button>
-                        </span>
-                    )}
-                </div>
-
-                <h2 className={styles.title}>{marketTitle}</h2>
-
-                {/* Progress Text */}
-                <div className={styles.progressBarContainer}>
-                    <div className={styles.probabilityText}>
-                        <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
-                        <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
-                    </div>
-                    <div className={styles.barBackground}>
-                        <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
-                    </div>
-                </div>
-
-                {/* Volume Stats */}
+                {/* Volume Stats - shown for all states */}
                 <div className={styles.volumeRow}>
                     <span>↗ Volume {formatVolume(volume)}</span>
                 </div>
 
-                {/* TradeBox with market state support */}
-                <TradeBox probability={probability} market={market} />
+                {/* State-specific content */}
+                {state === 'ACTIVE' && (
+                    <>
+                        <TradeBox probability={probability} market={market} />
+                        {market && <UserBetDisplay market={market} variant="compact" />}
+                        <ChartSection probability={probability} type={type} identifier={identifier} />
+                        {market && <ResolutionRules market={market} />}
+                    </>
+                )}
 
-                <ChartSection probability={probability} type={type} identifier={identifier} />
+                {state === 'RESOLVING' && (
+                    <>
+                        {market && <UserBetDisplay market={market} variant="compact" />}
+                        {renderTruthBlock()}
+                        {market && <ResolutionRules market={market} variant="compact" />}
+                    </>
+                )}
 
-                {/* Resolution Info */}
-                {market && <ResolutionRules market={market} />}
-
+                {(state === 'RESOLVED' || state === 'UNDETERMINED') && (
+                    <>
+                        {renderFinishedMarketPosition()}
+                        {renderTruthBlock()}
+                        {market && <ResolutionRules market={market} variant="compact" />}
+                    </>
+                )}
             </div>
         </div>
     );

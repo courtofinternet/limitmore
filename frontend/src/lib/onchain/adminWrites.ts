@@ -1,46 +1,13 @@
 import { Abi, createWalletClient, custom } from 'viem';
 import { baseSepolia } from 'viem/chains';
+import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
+import BetArtifact from '../contracts/BetCOFI.json';
 
 const FACTORY_ADDRESS =
     process.env.NEXT_PUBLIC_BET_FACTORY_ADDRESS || '0x0000000000000000000000000000000000000000';
 
-const FACTORY_ABI = [
-    {
-        type: 'function',
-        name: 'createBet',
-        stateMutability: 'nonpayable',
-        inputs: [
-            { name: 'title', type: 'string', internalType: 'string' },
-            { name: 'resolutionCriteria', type: 'string', internalType: 'string' },
-            { name: 'sideAName', type: 'string', internalType: 'string' },
-            { name: 'sideBName', type: 'string', internalType: 'string' },
-            { name: 'endDate', type: 'uint256', internalType: 'uint256' },
-            { name: 'resolutionType', type: 'uint8', internalType: 'uint8' },
-            { name: 'resolutionData', type: 'bytes', internalType: 'bytes' }
-        ],
-        outputs: [{ name: '', type: 'address', internalType: 'address' }]
-    },
-    {
-        type: 'function',
-        name: 'setCreatorApproval',
-        stateMutability: 'nonpayable',
-        inputs: [
-            { name: '_creator', type: 'address', internalType: 'address' },
-            { name: '_approved', type: 'bool', internalType: 'bool' }
-        ],
-        outputs: []
-    }
-] as const satisfies Abi;
-
-const BET_ABI = [
-    {
-        type: 'function',
-        name: 'resolve',
-        stateMutability: 'nonpayable',
-        inputs: [],
-        outputs: []
-    }
-] as const satisfies Abi;
+const FACTORY_ABI = (BetFactoryArtifact as { abi: Abi }).abi as Abi;
+const BET_ABI = (BetArtifact as { abi: Abi }).abi as Abi;
 
 async function getWalletClient() {
     if (typeof window === 'undefined' || !(window as any).ethereum) {

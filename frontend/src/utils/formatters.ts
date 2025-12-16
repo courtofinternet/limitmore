@@ -4,27 +4,27 @@
 
 export const formatVolume = (num: number): string => {
     if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M USDC';
+        return (num / 1000000).toFixed(1) + 'M USDL';
     }
     if (num >= 10000) {
-        return (num / 1000).toFixed(0) + 'k USDC';
+        return (num / 1000).toFixed(0) + 'k USDL';
     }
-    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDC';
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDL';
 };
 
 // Alternative compact format with localeString for exact amounts
-export const formatUsdcCompact = (num: number): string => {
+export const formatUsdlCompact = (num: number): string => {
     if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M USDC';
+        return (num / 1000000).toFixed(1) + 'M USDL';
     }
     if (num >= 10000) {
-        return (num / 1000).toFixed(0) + 'k USDC';
+        return (num / 1000).toFixed(0) + 'k USDL';
     }
-    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDC';
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDL';
 };
 
-export const formatUsdcAmount = (num: number): string => {
-    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDC';
+export const formatUsdlAmount = (num: number): string => {
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' USDL';
 };
 
 export const formatAddress = (addr?: string): string => {
@@ -64,8 +64,8 @@ export const formatDeadlineDateTime = (deadlineSeconds: number): string => {
     });
 };
 
-export const formatExactUsdc = (num: number): string => {
-    return `${num.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`;
+export const formatExactUsdl = (num: number): string => {
+    return `${num.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDL`;
 };
 
 export const formatResolutionDate = (deadline?: number | string): string | null => {

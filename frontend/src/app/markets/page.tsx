@@ -19,24 +19,8 @@ export default function MarketsPage() {
     const [activeCategory, setActiveCategory] = useState('All'); // UI category, not used for fetching
     const [activeMarketState, setActiveMarketState] = useState<MarketState>('ACTIVE');
     const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
-    const [marketsByState, setMarketsByState] = useState<Record<MarketState, MarketData[]>>({
-        ACTIVE: [],
-        RESOLVING: [],
-        RESOLVED: [],
-        UNDETERMINED: []
-    });
-    const [loadingStates, setLoadingStates] = useState<Record<MarketState, boolean>>({
-        ACTIVE: false,
-        RESOLVING: false,
-        RESOLVED: false,
-        UNDETERMINED: false
-    });
-    const [loadedStates, setLoadedStates] = useState<Record<MarketState, boolean>>({
-        ACTIVE: false,
-        RESOLVING: false,
-        RESOLVED: false,
-        UNDETERMINED: false
-    });
+    const [currentMarkets, setCurrentMarkets] = useState<MarketData[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         const id = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
@@ -50,57 +34,47 @@ export default function MarketsPage() {
         setSelectedMarketData(market || null);
     };
 
-    const loadState = async (state: MarketState) => {
-        setLoadingStates((prev) => ({ ...prev, [state]: true }));
+    const loadMarketsForCurrentState = React.useCallback(async () => {
+        setIsLoading(true);
         try {
-            const markets = await fetchMarketsByStatus(state);
-            setMarketsByState((prev) => ({ ...prev, [state]: markets }));
-            setLoadedStates((prev) => ({ ...prev, [state]: true }));
+            const markets = await fetchMarketsByStatus(activeMarketState);
+            setCurrentMarkets(markets);
         } catch (error) {
-            console.error(`Failed to load ${state} markets:`, error);
-            showToast(`Failed to load ${state.toLowerCase()} markets. Please try again.`, 'error');
+            console.error(`Failed to load ${activeMarketState} markets:`, error);
+            showToast(`Failed to load ${activeMarketState.toLowerCase()} markets. Please try again.`, 'error');
+            setCurrentMarkets([]);
         } finally {
-            setLoadingStates((prev) => ({ ...prev, [state]: false }));
+            setIsLoading(false);
         }
-    };
+    }, [activeMarketState, showToast]);
 
-    // Load needed state data when state changes (initially and on switch)
+    // Always fetch fresh data when state changes
     useEffect(() => {
-        if (!loadedStates[activeMarketState] && !loadingStates[activeMarketState]) {
-            loadState(activeMarketState);
-        }
-    }, [activeMarketState, loadedStates, loadingStates]);
+        loadMarketsForCurrentState();
+    }, [loadMarketsForCurrentState]);
 
-    // Determine current markets based on category selection
-    const currentMarkets: MarketData[] = marketsByState[activeMarketState] || [];
+    // Periodically refresh markets data every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(() => {
+            loadMarketsForCurrentState();
+        }, 30000);
 
-    // Find selected market: first try current state, then check other states, finally use stored data
+        return () => clearInterval(interval);
+    }, [loadMarketsForCurrentState]);
+
+    // Find selected market in current markets or fall back to stored data
     const selectedMarket = React.useMemo((): MarketData | null => {
         if (!selectedMarketId) return null;
 
-        // First try to find in current state (for updated data)
-        const currentStateMarket = currentMarkets.find(m => m.id === selectedMarketId);
-        if (currentStateMarket) {
-            return currentStateMarket;
+        // Try to find in current markets (for updated data)
+        const currentMarket = currentMarkets.find(m => m.id === selectedMarketId);
+        if (currentMarket) {
+            return currentMarket;
         }
 
-        // If not in current state, try to find the same market in other states by contractId
-        if (selectedMarketData?.contractId) {
-            for (const state of Object.keys(marketsByState) as MarketState[]) {
-                if (state !== activeMarketState) {
-                    const marketInOtherState = marketsByState[state].find(
-                        m => m.contractId === selectedMarketData.contractId
-                    );
-                    if (marketInOtherState) {
-                        return marketInOtherState;
-                    }
-                }
-            }
-        }
-
-        // Fall back to stored market data (maintains panel persistence)
+        // Fall back to stored market data (maintains panel persistence when switching states)
         return selectedMarketData;
-    }, [selectedMarketId, currentMarkets, selectedMarketData, marketsByState, activeMarketState]);
+    }, [selectedMarketId, currentMarkets, selectedMarketData]);
 
     // Update stored market data when we find the market in current state
     React.useEffect(() => {
@@ -121,7 +95,7 @@ export default function MarketsPage() {
         return matchesCategory;
     });
 
-    const isGridLoading = loadingStates[activeMarketState] && !loadedStates[activeMarketState];
+    const isGridLoading = isLoading;
     const isEmpty = !isGridLoading && filteredMarkets.length === 0;
 
     return (

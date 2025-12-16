@@ -2,18 +2,18 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useWallet } from './WalletProvider';
-import { checkUsdcAllowance } from '../../lib/onchain/writes';
+import { checkUsdlAllowance } from '../../lib/onchain/writes';
 import { FACTORY_ADDRESS } from '../../lib/constants';
 
 interface AllowanceContextType {
-    usdcAllowance: bigint | undefined;
+    usdlAllowance: bigint | undefined;
     isLoading: boolean;
     refetchAllowance: () => Promise<void>;
     needsApproval: boolean;
 }
 
 const AllowanceContext = createContext<AllowanceContextType>({
-    usdcAllowance: undefined,
+    usdlAllowance: undefined,
     isLoading: false,
     refetchAllowance: async () => {},
     needsApproval: true
@@ -33,25 +33,25 @@ interface AllowanceProviderProps {
 
 export const AllowanceProvider: React.FC<AllowanceProviderProps> = ({ children }) => {
     const { isConnected, walletAddress } = useWallet();
-    const [usdcAllowance, setUsdcAllowance] = useState<bigint | undefined>(undefined);
+    const [usdlAllowance, setUsdlAllowance] = useState<bigint | undefined>(undefined);
     const [isLoading, setIsLoading] = useState(false);
 
     const fetchAllowance = useCallback(async () => {
         if (!isConnected || !walletAddress) {
-            setUsdcAllowance(undefined);
+            setUsdlAllowance(undefined);
             return;
         }
 
         setIsLoading(true);
         try {
-            const allowance = await checkUsdcAllowance(
+            const allowance = await checkUsdlAllowance(
                 walletAddress as `0x${string}`,
                 FACTORY_ADDRESS as `0x${string}`
             );
-            setUsdcAllowance(allowance);
+            setUsdlAllowance(allowance);
         } catch (error) {
-            console.error('Failed to fetch USDC allowance:', error);
-            setUsdcAllowance(undefined);
+            console.error('Failed to fetch USDL allowance:', error);
+            setUsdlAllowance(undefined);
         } finally {
             setIsLoading(false);
         }
@@ -77,10 +77,10 @@ export const AllowanceProvider: React.FC<AllowanceProviderProps> = ({ children }
         return () => clearInterval(interval);
     }, [isConnected, walletAddress, fetchAllowance]);
 
-    const needsApproval = !usdcAllowance || usdcAllowance === BigInt(0);
+    const needsApproval = !usdlAllowance || usdlAllowance === BigInt(0);
 
     const value: AllowanceContextType = {
-        usdcAllowance,
+        usdlAllowance,
         isLoading,
         refetchAllowance,
         needsApproval

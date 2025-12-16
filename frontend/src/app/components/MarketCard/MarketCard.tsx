@@ -3,11 +3,11 @@ import styles from './MarketCard.module.css';
 import GeckoWidget from '../SharedMarket/GeckoWidget';
 import TradingViewWidget from '../SharedMarket/TradingViewWidget';
 import ProbabilityGauge from '../SharedMarket/ProbabilityGauge';
-import { MarketData, getUserMarketStatus } from '../../../data/markets';
+import { MarketData, getUserMarketStatus, UserMarketStatus } from '../../../data/markets';
 import { claimRewards } from '../../../lib/onchain/writes';
 import { useWallet } from '../../providers/WalletProvider';
 import { useToast } from '../../providers/ToastProvider';
-import { formatVolume, formatAddress, formatCountdown, formatDeadlineDateTime, formatExactUsdc } from '../../../utils/formatters';
+import { formatVolume, formatAddress, formatCountdown, formatDeadlineDateTime, formatExactUsdl } from '../../../utils/formatters';
 import ResolutionRules from '../Shared/ResolutionRules';
 
 interface MarketCardProps {
@@ -64,7 +64,25 @@ const MarketCard: React.FC<MarketCardProps> = ({
     const { showToast } = useToast();
 
     // Get user market status if we have market data and wallet connected
-    const userStatus = market && isConnected && walletAddress ? getUserMarketStatus(market.id, walletAddress) : null;
+    const [userStatus, setUserStatus] = React.useState<UserMarketStatus | null>(null);
+
+    React.useEffect(() => {
+        const fetchUserStatus = async () => {
+            if (market && isConnected && walletAddress && market.contractId) {
+                try {
+                    const status = await getUserMarketStatus(market.contractId, walletAddress, market);
+                    setUserStatus(status);
+                } catch (error) {
+                    console.error('Error fetching user status:', error);
+                    setUserStatus(null);
+                }
+            } else {
+                setUserStatus(null);
+            }
+        };
+
+        fetchUserStatus();
+    }, [market, isConnected, walletAddress]);
 
     // --- Countdown (simple, using raw end date) ---
     const hasNow = typeof now === 'number';
@@ -245,7 +263,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
                                         ? `${formatVolume(position.amount)} on ${position.outcome}`
                                         : null
                                     : userStatus
-                                        ? `+${formatExactUsdc(userStatus.potentialWinnings)}`
+                                        ? `+${formatExactUsdl(userStatus.potentialWinnings)}`
                                         : null;
 
                         return (
@@ -350,12 +368,6 @@ const MarketCard: React.FC<MarketCardProps> = ({
                         <span className={styles.volumeLoading}></span>
                     ) : (
                         <span className={styles.volume}>{formatVolume(volume)}</span>
-                    )}
-                    {/* Only show position for active markets in footer */}
-                    {userStatus?.hasPosition && market?.state === 'ACTIVE' && (
-                        <span className={styles.userPosition}>
-                            {formatVolume(userStatus.position!.amount)} on {userStatus.position!.outcome}
-                        </span>
                     )}
                 </div>
                 {getActionArea()}
