@@ -4,8 +4,6 @@
  * Polls for ResolutionRequested events from Base Sepolia BetFactoryCOFI
  * and deploys the appropriate oracle contract to GenLayer.
  *
- * Uses queryFilter polling (every 5s) since public RPCs don't support
- * persistent event filters reliably.
  */
 
 import { ethers, AbiCoder } from "ethers";
@@ -108,13 +106,10 @@ export class EvmToGenLayerRelay {
       }
       const [tokenSymbol, tokenName] = decoded;
 
-      // Bridge config for auto-relay back to EVM
       const bridgeSender = getBridgeSenderAddress();
       const targetChainEid = BASE_SEPOLIA_LZ_EID;
       const targetContract = getBetFactoryAddress();
 
-      // Constructor args: (market_id, token_symbol, token_name, market_title, side_a, side_b,
-      //                    bridge_sender, target_chain_eid, target_contract)
       const args = [
         betContract, tokenSymbol, tokenName, title, sideAName, sideBName,
         bridgeSender, targetChainEid, targetContract
@@ -128,7 +123,6 @@ export class EvmToGenLayerRelay {
       console.log(`  Sides: "${sideAName}" vs "${sideBName}"`);
       console.log(`  Bridge: ${bridgeSender} → EID ${targetChainEid} → ${targetContract}`);
 
-      // Load contract code
       const code = this.loadOracleCode(resolutionType);
 
       // Deploy to GenLayer
@@ -228,7 +222,6 @@ export class EvmToGenLayerRelay {
     console.log(`[EVM→GL] RPC: ${getBaseSepoliaRpcUrl()}`);
     console.log(`[EVM→GL] GenLayer: ${getGenlayerRpcUrl()}`);
 
-    // Initial poll
     this.poll();
 
     // Poll every 5 seconds

@@ -6,8 +6,12 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   console.log(`Deploying from address: ${deployer.address}`);
 
-  // Configuration
-  const tokenAddress = process.env.MOCK_USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7"; // MockUSDL on Base Sepolia
+  // Configuration (from env)
+  const tokenAddress = process.env.MOCK_USDL_ADDRESS;
+
+  if (!tokenAddress) {
+    throw new Error("MOCK_USDL_ADDRESS environment variable not set!");
+  }
 
   console.log("\nFactory Configuration:");
   console.log(`  Token Address: ${tokenAddress}`);

@@ -1,5 +1,6 @@
 {
   "name": "hardhat-project",
+  "license": "MIT",
   "devDependencies": {
     "@layerzerolabs/lz-evm-protocol-v2": "^3.0.49",
     "@layerzerolabs/lz-v2-utilities": "^3.0.61",

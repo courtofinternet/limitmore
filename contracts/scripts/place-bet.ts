@@ -1,17 +1,15 @@
 import { ethers } from "hardhat";
 
-// MockUSDL on Base Sepolia (default fallback)
-const TOKEN_ADDRESS = process.env.MOCK_USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7";
-
 async function main() {
+  const tokenAddress = process.env.MOCK_USDL_ADDRESS;
   const factoryAddress = process.env.FACTORY_ADDRESS;
   const betAddress = process.env.BET_ADDRESS;
   const side = process.env.SIDE?.toUpperCase(); // A or B
   const amount = process.env.AMOUNT; // In USDC units (6 decimals), e.g., 1000000 = 1 USDC
 
-  if (!factoryAddress || !betAddress || !side || !amount) {
-    console.log("Usage: FACTORY_ADDRESS=0x... BET_ADDRESS=0x... SIDE=A AMOUNT=1000000 npx hardhat run scripts/testing/place-bet.ts --network baseSepolia");
-    throw new Error("Missing required env vars: FACTORY_ADDRESS, BET_ADDRESS, SIDE, AMOUNT");
+  if (!tokenAddress || !factoryAddress || !betAddress || !side || !amount) {
+    console.log("Usage: MOCK_USDL_ADDRESS=0x... FACTORY_ADDRESS=0x... BET_ADDRESS=0x... SIDE=A AMOUNT=1000000 npx hardhat run scripts/place-bet.ts --network baseSepolia");
+    throw new Error("Missing required env vars: MOCK_USDL_ADDRESS, FACTORY_ADDRESS, BET_ADDRESS, SIDE, AMOUNT");
   }
 
   const [signer] = await ethers.getSigners();
@@ -22,7 +20,7 @@ async function main() {
   console.log(`  Amount: ${amount} (${Number(amount) / 1e6} USDC)`);
 
   // Get contracts
-  const token = await ethers.getContractAt("IERC20", TOKEN_ADDRESS);
+  const token = await ethers.getContractAt("IERC20", tokenAddress);
   const factory = await ethers.getContractAt("BetFactoryCOFI", factoryAddress);
 
   // Check token balance
