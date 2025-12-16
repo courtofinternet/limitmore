@@ -11,20 +11,15 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://pulse.walletconnect.org",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://auth.privy.io https://widgets.coingecko.com",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https: blob:",
+              "img-src 'self' data: https:",
               "font-src 'self' https:",
-              "connect-src 'self' https://auth.privy.io https://sepolia.base.org https://base-sepolia.g.alchemy.com wss://relay.walletconnect.com wss://relay.walletconnect.org https://relay.walletconnect.com https://relay.walletconnect.org https://verify.walletconnect.com https://verify.walletconnect.org https://explorer-api.walletconnect.com https://pulse.walletconnect.org",
-              "frame-src 'self' https://auth.privy.io https://verify.walletconnect.com",
+              "connect-src 'self' https://auth.privy.io https://sepolia.base.org wss: https:",
+              "frame-src 'self' https://auth.privy.io",
               "worker-src 'self' blob:",
-              "object-src 'none'",
-              "base-uri 'self'"
+              "object-src 'none'"
             ].join('; ')
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
           }
         ]
       }
@@ -53,6 +48,7 @@ const nextConfig: NextConfig = {
         path: false,
         buffer: false,
         util: false,
+        '@react-native-async-storage/async-storage': false,
       };
     }
 
