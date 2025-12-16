@@ -259,6 +259,27 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                                     <TopUpIcon size={16} />
                                     <span style={{ marginLeft: '8px' }}>{isDripping ? 'Getting USDL...' : 'Get USDL'}</span>
                                 </button>
+                                <a
+                                    href="https://www.alchemy.com/faucets/base-sepolia"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        borderRadius: '8px',
+                                        textDecoration: 'none',
+                                        color: 'inherit'
+                                    }}
+                                >
+                                    <TopUpIcon size={16} />
+                                    <span style={{ marginLeft: '8px' }}>Get ETH</span>
+                                </a>
                             </div>
                         )}
                     </div>
