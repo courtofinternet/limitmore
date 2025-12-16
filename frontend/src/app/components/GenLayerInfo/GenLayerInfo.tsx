@@ -34,16 +34,10 @@ const GenLayerInfo: React.FC<GenLayerInfoProps> = ({ onClose }) => {
             <div className={styles.content}>
 
                 <p className={styles.description}>
-                    Limitmore is a prediction market inspired by Limitless but powered by GenLayer
-                    as the resolution layer. AI agents automatically resolve markets using real-world
+                    This is a prediction market inspired by Limitless but powered by GenLayer
+                    as the resolution layer. Genlayer's Optimistic Democracy automatically resolve markets using real-world
                     data instead of human oracles.
                 </p>
-
-                <div className={styles.features}>
-                    <div>• AI-powered resolution</div>
-                    <div>• Built on Base Sepolia</div>
-                    <div>• No human bias</div>
-                </div>
 
                 <a
                     href="https://github.com/courtofinternet/limitmore/"
