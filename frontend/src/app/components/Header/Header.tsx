@@ -278,7 +278,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                                     }}
                                 >
                                     <TopUpIcon size={16} />
-                                    <span style={{ marginLeft: '8px' }}>Get ETH</span>
+                                    <span style={{ marginLeft: '8px' }}>Get bETH Sepolia</span>
                                 </a>
                             </div>
                         )}
