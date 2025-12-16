@@ -1,20 +1,21 @@
-# Limitless Homage
+# Limitmore
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Binary prediction markets with trustless, on-chain resolution.**
+**An experimental playground for fully on-chain prediction market resolution.**
 
-[Limitless Inspired](https://limitless.exchange/) | [GenLayer Powered](https://genlayer.com/)
+[Powered by GenLayer](https://genlayer.com/)
 
-## 📖 About The Project
+## About
 
-This project is a Limitless Homage. It consists of a prediction market platform that leverages **GenLayer's Intelligent Contracts** to resolve markets without centralized oracles. By using GenLayer validators to fetch real-world data and reach consensus, we eliminate the trust assumption required by traditional oracle solutions.
+Limitmore is a playground project inspired by [Limitless](https://limitless.exchange/) and exploring how **GenLayer's Intelligent Contracts** can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
 
-### Key Features
+- Fetch real-world data (crypto prices, stock prices, news)
+- Process non-deterministic data
+- Reach consensus across multiple AI-powered validators
+- Bridge results back to Base via LayerZero
 
-- **Trustless Resolution**: Markets are resolved by a consensus of validators executing Python logic on GenLayer.
-- **Cross-Chain Architecture**: Seamless bridging between Base (resolution request) and GenLayer (data fetching) via LayerZero.
-- **Automated Lifecycle**: From bet creation to payout, the entire flow is handled by smart contracts.
+This demonstrates a new paradigm for prediction markets where resolution is transparent, verifiable, and requires no trust assumptions.
 
 ## 🏗️ Architecture
 

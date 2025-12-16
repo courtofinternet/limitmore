@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Limitless Homage is a binary prediction market platform on Base Sepolia. Markets are resolved by GenLayer intelligent contracts (Python oracles) that fetch real-world data, reach validator consensus, and bridge results back via LayerZero.
+Limitmore is an experimental prediction market playground on Base Sepolia. Markets are resolved by GenLayer intelligent contracts (Python oracles) that fetch real-world data, reach validator consensus, and bridge results back via LayerZero.
 
 ## Commands
 
