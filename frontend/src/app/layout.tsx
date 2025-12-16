@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Limitless x GenLayer",
+  title: "Limitmore",
   description: "Court of Internet's Limitmore Exchange",
   icons: {
     icon: "/cofi.png",

@@ -131,7 +131,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, currentPage }) => {
                 >
                     <Image src="/cofi.svg" alt="Logo" width={30} height={30} />
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <h1 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px', margin: 0 }}>Limitless</h1>
+                        <h1 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '-0.5px', margin: 0 }}>Limitmore</h1>
                         <div style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '400' }}>
                             Powered by{' '}
                             <a
