@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 
-// Base Sepolia USDC (default fallback)
-const USDC_ADDRESS = process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+// MockUSDL on Base Sepolia (default fallback)
+const TOKEN_ADDRESS = process.env.MOCK_USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7";
 
 async function main() {
   const factoryAddress = process.env.FACTORY_ADDRESS;
@@ -22,26 +22,26 @@ async function main() {
   console.log(`  Amount: ${amount} (${Number(amount) / 1e6} USDC)`);
 
   // Get contracts
-  const usdc = await ethers.getContractAt("IERC20", USDC_ADDRESS);
+  const token = await ethers.getContractAt("IERC20", TOKEN_ADDRESS);
   const factory = await ethers.getContractAt("BetFactoryCOFI", factoryAddress);
 
-  // Check USDC balance
-  const balance = await usdc.balanceOf(signer.address);
-  console.log(`\nUSDC balance: ${balance} (${Number(balance) / 1e6} USDC)`);
+  // Check token balance
+  const balance = await token.balanceOf(signer.address);
+  console.log(`\nToken balance: ${balance} (${Number(balance) / 1e6} USDL)`);
 
   if (balance < BigInt(amount)) {
-    console.log("\nInsufficient USDC balance!");
-    console.log("Get testnet USDC from: https://faucet.circle.com/");
-    throw new Error("Insufficient USDC balance");
+    console.log("\nInsufficient token balance!");
+    console.log("Mint MockUSDL tokens or use drip() for testnet tokens");
+    throw new Error("Insufficient token balance");
   }
 
   // Check and set allowance
-  const allowance = await usdc.allowance(signer.address, factoryAddress);
+  const allowance = await token.allowance(signer.address, factoryAddress);
   console.log(`Current allowance: ${allowance}`);
 
   if (allowance < BigInt(amount)) {
-    console.log("\nApproving USDC to factory...");
-    const approveTx = await usdc.approve(factoryAddress, ethers.MaxUint256);
+    console.log("\nApproving token to factory...");
+    const approveTx = await token.approve(factoryAddress, ethers.MaxUint256);
     await approveTx.wait();
     console.log("Approved!");
   }

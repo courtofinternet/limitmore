@@ -13,7 +13,7 @@
  * - Service must be running (npm run dev)
  * - BridgeReceiver configured on factory
  * - Private key must have ETH on Base Sepolia
- * - Private key must have USDC on Base Sepolia (get from https://faucet.circle.com/)
+ * - Private key must have MockUSDL on Base Sepolia (call drip() on MockUSDL contract)
  * - Private key must be approved creator on factory (or be owner)
  *
  * Usage: npx tsx scripts/test-e2e-flow.ts
@@ -24,10 +24,10 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Base Sepolia USDC
-const USDC_ADDRESS = process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
-const BET_AMOUNT_A = 10_000n; // 0.01 USDC (1 cent)
-const BET_AMOUNT_B = 20_000n; // 0.02 USDC (2 cents)
+// MockUSDL on Base Sepolia
+const TOKEN_ADDRESS = process.env.MOCK_USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7";
+const BET_AMOUNT_A = 10_000n; // 0.01 USDL (1 cent)
+const BET_AMOUNT_B = 20_000n; // 0.02 USDL (2 cents)
 
 // Minimal ABIs for the contracts we need
 const BET_FACTORY_ABI = [
@@ -172,40 +172,40 @@ async function main() {
   // ============================================
   console.log("\n--- Step 2: Placing Bets ---");
 
-  const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet);
+  const token = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, wallet);
 
-  // Check USDC balance
-  const usdcBalance = await usdc.balanceOf(wallet.address);
-  const requiredUsdc = BET_AMOUNT_A + BET_AMOUNT_B; // Need to bet on both sides
-  console.log(`  USDC Balance: ${usdcBalance} (${Number(usdcBalance) / 1e6} USDC)`);
-  console.log(`  Required: ${requiredUsdc} (${Number(requiredUsdc) / 1e6} USDC)`);
+  // Check MockUSDL balance
+  const tokenBalance = await token.balanceOf(wallet.address);
+  const requiredToken = BET_AMOUNT_A + BET_AMOUNT_B; // Need to bet on both sides
+  console.log(`  USDL Balance: ${tokenBalance} (${Number(tokenBalance) / 1e6} USDL)`);
+  console.log(`  Required: ${requiredToken} (${Number(requiredToken) / 1e6} USDL)`);
 
-  if (usdcBalance < requiredUsdc) {
-    console.log("\n  Insufficient USDC balance!");
-    console.log("  Get testnet USDC from: https://faucet.circle.com/");
-    console.log("  Select 'Base Sepolia' network and request USDC");
-    throw new Error(`Insufficient USDC: have ${Number(usdcBalance) / 1e6}, need ${Number(requiredUsdc) / 1e6}`);
+  if (tokenBalance < requiredToken) {
+    console.log("\n  Insufficient USDL balance!");
+    console.log("  Call drip() on MockUSDL contract to get test tokens:");
+    console.log(`  MockUSDL Address: ${TOKEN_ADDRESS}`);
+    throw new Error(`Insufficient USDL: have ${Number(tokenBalance) / 1e6}, need ${Number(requiredToken) / 1e6}`);
   }
 
-  // Check and set USDC allowance
-  const allowance = await usdc.allowance(wallet.address, config.betFactoryAddress);
+  // Check and set token allowance
+  const allowance = await token.allowance(wallet.address, config.betFactoryAddress);
   console.log(`  Current Allowance: ${allowance}`);
 
-  if (allowance < requiredUsdc) {
-    console.log("\n  Approving USDC to factory...");
-    const approveTx = await usdc.approve(config.betFactoryAddress, ethers.MaxUint256);
+  if (allowance < requiredToken) {
+    console.log("\n  Approving USDL to factory...");
+    const approveTx = await token.approve(config.betFactoryAddress, ethers.MaxUint256);
     await approveTx.wait();
     console.log("  Approved!");
   }
 
-  // Place bet on Side A (0.01 USDC)
-  console.log(`\n  Placing ${Number(BET_AMOUNT_A) / 1e6} USDC on Side A...`);
+  // Place bet on Side A (0.01 USDL)
+  console.log(`\n  Placing ${Number(BET_AMOUNT_A) / 1e6} USDL on Side A...`);
   const betATx = await factory.placeBet(betAddress, true, BET_AMOUNT_A);
   await betATx.wait();
   console.log(`  TX: ${betATx.hash}`);
 
-  // Place bet on Side B (0.02 USDC)
-  console.log(`  Placing ${Number(BET_AMOUNT_B) / 1e6} USDC on Side B...`);
+  // Place bet on Side B (0.02 USDL)
+  console.log(`  Placing ${Number(BET_AMOUNT_B) / 1e6} USDL on Side B...`);
   const betBTx = await factory.placeBet(betAddress, false, BET_AMOUNT_B);
   await betBTx.wait();
   console.log(`  TX: ${betBTx.hash}`);
@@ -214,8 +214,8 @@ async function main() {
   const totalA = await bet.totalSideA();
   const totalB = await bet.totalSideB();
   console.log(`\n  Bets placed successfully!`);
-  console.log(`  Total Side A: ${Number(totalA) / 1e6} USDC`);
-  console.log(`  Total Side B: ${Number(totalB) / 1e6} USDC`);
+  console.log(`  Total Side A: ${Number(totalA) / 1e6} USDL`);
+  console.log(`  Total Side B: ${Number(totalB) / 1e6} USDL`);
 
   // ============================================
   // STEP 3: Wait for End Date & Request Resolution

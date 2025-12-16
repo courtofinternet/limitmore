@@ -31,7 +31,7 @@ async function main() {
   console.log("\n2. Mint tokens (as owner/admin):");
   console.log(`   > await usdl.mint("0xRECIPIENT", ethers.parseUnits("1000", 6))`);
   console.log("\n3. Use this address in BetFactoryCOFI deployment:");
-  console.log(`   USDC_ADDRESS=${address} npx hardhat run scripts/deploy-factory.ts --network baseSepolia`);
+  console.log(`   MOCK_USDL_ADDRESS=${address} npx hardhat run scripts/deploy-factory.ts --network baseSepolia`);
 }
 
 main()

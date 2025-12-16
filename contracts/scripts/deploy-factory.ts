@@ -7,14 +7,14 @@ async function main() {
   console.log(`Deploying from address: ${deployer.address}`);
 
   // Configuration
-  const usdcAddress = process.env.USDC_ADDRESS || "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
+  const tokenAddress = process.env.MOCK_USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7"; // MockUSDL on Base Sepolia
 
   console.log("\nFactory Configuration:");
-  console.log(`  USDC Address: ${usdcAddress}`);
+  console.log(`  Token Address: ${tokenAddress}`);
 
   // Deploy the BetFactoryCOFI contract
   const BetFactory = await ethers.getContractFactory("BetFactoryCOFI");
-  const factory = await BetFactory.deploy(usdcAddress);
+  const factory = await BetFactory.deploy(tokenAddress);
 
   await factory.waitForDeployment();
 
@@ -22,11 +22,11 @@ async function main() {
 
   console.log(`\n BetFactoryCOFI deployed to: ${address}`);
   console.log(`   Owner: ${deployer.address}`);
-  console.log(`   USDC token: ${usdcAddress}`);
+  console.log(`   Token: ${tokenAddress}`);
 
   console.log("\nTo verify on Basescan, run:");
   console.log(
-    `npx hardhat verify --network baseSepolia ${address} "${usdcAddress}"`
+    `npx hardhat verify --network baseSepolia ${address} "${tokenAddress}"`
   );
 
   console.log("\n Next steps:");

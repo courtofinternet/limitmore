@@ -4,84 +4,89 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Limitmore Exchange is a prediction market platform with three components:
-- **`/contracts`** - Solidity betting contracts (Base Sepolia/Mainnet)
-- **`/frontend`** - Next.js 15 web application
-- **`/bridge`** - GenLayer ↔ EVM cross-chain relay service
+Limitmore is a binary prediction market platform on Base blockchain. Users create markets with two sides (A/B), bet using MockUSDL tokens, and winners receive proportional payouts. Resolution is handled by GenLayer oracles via a cross-chain bridge.
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│    Frontend     │     │   Bridge Svc    │     │    GenLayer     │
+│   (Next.js)     │     │   (Node.js)     │     │    (Oracle)     │
+└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
+         │                       │                       │
+         ▼                       ▼                       │
+┌─────────────────────────────────────────┐              │
+│           Base Sepolia                   │              │
+│  ┌─────────────┐    ┌───────────────┐   │              │
+│  │BetFactoryCOFI│───▶│   BetCOFI     │   │◀─────────────┘
+│  └─────────────┘    └───────────────┘   │   (via LayerZero)
+│         │                               │
+│         ▼                               │
+│  ┌─────────────┐                        │
+│  │ MockUSDL    │                        │
+│  └─────────────┘                        │
+└─────────────────────────────────────────┘
+```
 
 ## Commands
 
 ### Contracts (`/contracts`)
 ```bash
-npm run compile          # Compile contracts + sync artifacts to frontend
-npm run test             # Run Hardhat tests
-npm run deploy:sepolia   # Deploy to Base Sepolia
-npm run deploy:factory:sepolia  # Deploy BetFactoryCOFI to Base Sepolia
-```
-
-### Frontend (`/frontend`)
-```bash
-npm run dev      # Development server (port 3000)
-npm run build    # Production build
-npm run lint     # ESLint
+npm run compile                # Compile + sync artifacts to frontend
+npm run test                   # Run Hardhat tests
+npm run deploy:factory:sepolia # Deploy BetFactoryCOFI to Base Sepolia
 ```
 
 ### Bridge Service (`/bridge/service`)
 ```bash
-npm run build    # Compile TypeScript
-npm run start    # Run relay service
-npm run dev      # Development mode with ts-node
-npm run test:e2e # End-to-end bridge test
+npm run dev        # Start relay service
+npm run test:e2e   # Full resolution flow test
 ```
 
-## Architecture
-
-```
-User → Frontend (Next.js + Wagmi + Privy)
-         ↓
-    BetFactoryCOFI (Base) ──creates──→ BetCOFI instances
-         ↓
-    ResolutionRequested event
-         ↓
-    Bridge Service (EVM→GenLayer relay)
-         ↓
-    GenLayer Oracle (Python) ──fetches external data──→ determines winner
-         ↓
-    Bridge Service (GenLayer→EVM relay via LayerZero)
-         ↓
-    BetFactoryCOFI.processBridgeMessage() → BetCOFI.setResolution()
+### Frontend (`/frontend`)
+```bash
+npm run dev    # Start dev server at localhost:3000
+npm run build  # Production build
 ```
 
-### Key Contracts
-- **BetFactoryCOFI.sol** - Factory that creates bets, routes oracle resolutions, manages creator approvals
-- **BetCOFI.sol** - Individual prediction market (USDC bets on Side A vs B, status: ACTIVE→RESOLVING→RESOLVED/UNDETERMINED)
+## Key Contracts
 
-### Bridge Flow
-- EVM→GenLayer: Listens for `ResolutionRequested` events, deploys oracle contracts
-- GenLayer→EVM: Polls for bridge messages, relays via zkSync+LayerZero to Base
+**BetFactoryCOFI** - Factory that creates BetCOFI instances, routes bets, receives bridge messages
+**BetCOFI** - Individual prediction market with states: ACTIVE → RESOLVING → RESOLVED/UNDETERMINED
+**MockUSDL** - Test ERC20 token with `drip()` faucet function
 
-### Resolution Types
-- `CRYPTO` (0) - Crypto price predictions
-- `STOCKS` (1) - Stock price predictions
-- `NEWS` (2) - News-based outcomes
+## Contract Addresses (Base Sepolia)
 
-## Key Files
-
-| Purpose | Path |
-|---------|------|
-| Factory contract | `/contracts/contracts/BetFactoryCOFI.sol` |
-| Bet contract | `/contracts/contracts/BetCOFI.sol` |
-| Contract tests | `/contracts/test/*.test.ts` |
-| Bridge relay entry | `/bridge/service/src/index.ts` |
-| EVM→GL relay | `/bridge/service/src/relay/EvmToGenLayer.ts` |
-| GL→EVM relay | `/bridge/service/src/relay/GenLayerToEvm.ts` |
-| Oracle contracts | `/bridge/service/intelligent-oracles/*.py` |
-| Frontend onchain layer | `/frontend/src/lib/onchain/` |
+| Contract | Address |
+|----------|---------|
+| BetFactoryCOFI | `0x5449292eed27EdF893Ce726a22Ff50877dC103F6` |
+| MockUSDL | `0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7` |
+| BridgeReceiver | `0x57E892519a67C44661533fCBCc40A1AeaFE7f529` |
 
 ## Environment Variables
 
-Each component has a `.env.example` showing required variables. Key ones:
-- `PRIVATE_KEY` - Transaction signer (contracts, bridge)
-- `BASE_SEPOLIA_RPC_URL` - Base Sepolia RPC
-- `BET_FACTORY_ADDRESS` - Deployed factory address
-- `NEXT_PUBLIC_PRIVY_APP_ID` - Privy auth (frontend)
+**contracts/.env**: `PRIVATE_KEY`, `FACTORY_ADDRESS`, `MOCK_USDL_ADDRESS`, `BRIDGE_RECEIVER_ADDRESS`
+**bridge/service/.env**: `BET_FACTORY_ADDRESS`, `BRIDGE_FORWARDER_ADDRESS`, `BRIDGE_SENDER_ADDRESS`, `PRIVATE_KEY`
+**frontend/.env.local**: `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_BET_FACTORY_ADDRESS`
+
+## Resolution Flow
+
+1. User calls `bet.resolve()` after betting ends
+2. Factory emits `ResolutionRequested` event
+3. Bridge service deploys oracle to GenLayer
+4. Oracle fetches price data and determines winner
+5. Result relayed back via LayerZero to BridgeReceiver
+6. Factory calls `bet.setResolution()` to finalize
+
+## Testing Scripts
+
+```bash
+# Create a test bet
+FACTORY_ADDRESS=0x... npx hardhat run scripts/create-bet.ts --network baseSepolia
+
+# Place a bet
+FACTORY_ADDRESS=0x... BET_ADDRESS=0x... SIDE=A AMOUNT=1000000 npx hardhat run scripts/place-bet.ts --network baseSepolia
+
+# Get testnet tokens
+npx hardhat run scripts/mint-usdl.ts --network baseSepolia
+```
