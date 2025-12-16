@@ -4,11 +4,7 @@ pragma solidity ^0.8.22;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-
-interface IBetFactoryCOFI {
-    function forwardResolutionRequest(uint8 resolutionType) external;
-    function notifyStatusChange(uint8 oldStatus, uint8 newStatus) external;
-}
+import "./interfaces/IBetFactoryCOFI.sol";
 
 /// @title BetCOFI - Binary prediction market contract
 /// @notice Users bet on side A or B. After endDate, creator requests resolution from GenLayer oracle.
@@ -42,9 +38,13 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     mapping(address => uint256) public betsOnSideB;
     mapping(address => bool) public hasClaimed;
 
+    // Resolution results from oracle
+    uint256 public resolvedPrice;
+    string public winnerValue;
+
     event BetPlacedOnA(address indexed bettor, uint256 amount);
     event BetPlacedOnB(address indexed bettor, uint256 amount);
-    event BetResolved(bool sideAWins, uint256 timestamp);
+    event BetResolved(bool sideAWins, uint256 timestamp, uint256 priceValue, string winnerValue);
     event BetUndetermined(uint256 timestamp);
     event WinningsClaimed(address indexed winner, uint256 amount);
     event ResolutionReceived(bool sideAWins);
@@ -128,24 +128,31 @@ contract BetCOFI is ReentrancyGuard, Ownable {
     function setResolution(bytes calldata _message) external {
         require(msg.sender == factory, "Only factory can dispatch");
 
-        (address betAddress, bool sideAWins, bool isUndetermined,,) =
-            abi.decode(_message, (address, bool, bool, uint256, bytes32));
+        (
+            address betAddress,
+            bool sideAWins,
+            bool isUndetermined,
+            ,
+            ,
+            uint256 priceValue,
+            string memory winnerVal
+        ) = abi.decode(_message, (address, bool, bool, uint256, bytes32, uint256, string));
 
         require(betAddress == address(this), "Response for wrong bet");
         require(status == BetStatus.RESOLVING, "Not awaiting resolution");
 
         uint8 oldStatus = uint8(status);
         isResolved = true;
+        resolvedPrice = priceValue;
+        winnerValue = winnerVal;
 
-        if (isUndetermined ||
-            (sideAWins && totalSideA == 0) ||
-            (!sideAWins && totalSideB == 0)) {
+        if (isUndetermined) {
             status = BetStatus.UNDETERMINED;
             emit BetUndetermined(block.timestamp);
         } else {
             isSideAWinner = sideAWins;
             status = BetStatus.RESOLVED;
-            emit BetResolved(sideAWins, block.timestamp);
+            emit BetResolved(sideAWins, block.timestamp, priceValue, winnerVal);
         }
 
         IBetFactoryCOFI(factory).notifyStatusChange(oldStatus, uint8(status));
@@ -167,15 +174,31 @@ contract BetCOFI is ReentrancyGuard, Ownable {
             payout = userBetOnA + userBetOnB;
             require(payout > 0, "No bet to refund");
         } else if (isSideAWinner) {
-            uint256 userBetOnA = betsOnSideA[msg.sender];
-            require(userBetOnA > 0, "No winning bet to claim");
-            uint256 winningsShare = (userBetOnA * totalSideB) / totalSideA;
-            payout = userBetOnA + winningsShare;
+            if (totalSideA == 0) {
+                // Side A won but no one bet on A - refund side B
+                uint256 userBetOnB = betsOnSideB[msg.sender];
+                require(userBetOnB > 0, "No bet to refund");
+                payout = userBetOnB;
+            } else {
+                // Normal: side A winners claim
+                uint256 userBetOnA = betsOnSideA[msg.sender];
+                require(userBetOnA > 0, "No winning bet to claim");
+                uint256 winningsShare = (userBetOnA * totalSideB) / totalSideA;
+                payout = userBetOnA + winningsShare;
+            }
         } else {
-            uint256 userBetOnB = betsOnSideB[msg.sender];
-            require(userBetOnB > 0, "No winning bet to claim");
-            uint256 winningsShare = (userBetOnB * totalSideA) / totalSideB;
-            payout = userBetOnB + winningsShare;
+            if (totalSideB == 0) {
+                // Side B won but no one bet on B - refund side A
+                uint256 userBetOnA = betsOnSideA[msg.sender];
+                require(userBetOnA > 0, "No bet to refund");
+                payout = userBetOnA;
+            } else {
+                // Normal: side B winners claim
+                uint256 userBetOnB = betsOnSideB[msg.sender];
+                require(userBetOnB > 0, "No winning bet to claim");
+                uint256 winningsShare = (userBetOnB * totalSideA) / totalSideB;
+                payout = userBetOnB + winningsShare;
+            }
         }
 
         hasClaimed[msg.sender] = true;
@@ -210,7 +233,9 @@ contract BetCOFI is ReentrancyGuard, Ownable {
         bool _isResolved,
         bool _isSideAWinner,
         uint256 _totalSideA,
-        uint256 _totalSideB
+        uint256 _totalSideB,
+        uint256 _resolvedPrice,
+        string memory _winnerValue
     ) {
         return (
             creator,
@@ -223,7 +248,9 @@ contract BetCOFI is ReentrancyGuard, Ownable {
             isResolved,
             isSideAWinner,
             totalSideA,
-            totalSideB
+            totalSideB,
+            resolvedPrice,
+            winnerValue
         );
     }
 

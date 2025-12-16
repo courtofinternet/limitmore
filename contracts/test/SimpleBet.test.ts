@@ -53,11 +53,13 @@ describe("BetCOFI", function () {
   async function simulateBridgeResolution(
     betAddress: string,
     sideAWins: boolean,
-    isUndetermined: boolean = false
+    isUndetermined: boolean = false,
+    priceValue: bigint = 0n,
+    winnerValue: string = ""
   ) {
     const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-      ["address", "bool", "bool", "uint256", "bytes32"],
-      [betAddress, sideAWins, isUndetermined, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+      ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+      [betAddress, sideAWins, isUndetermined, Math.floor(Date.now() / 1000), ethers.ZeroHash, priceValue, winnerValue]
     );
     const message = ethers.AbiCoder.defaultAbiCoder().encode(
       ["address", "bytes"],
@@ -69,10 +71,10 @@ describe("BetCOFI", function () {
   beforeEach(async function () {
     [deployer, creator, bettor1, bettor2, bettor3, bridgeReceiver] = await ethers.getSigners();
 
-    // Deploy MockUSDC
+    // Deploy MockUSDL
     try {
-      const MockUSDC = await ethers.getContractFactory("MockUSDC");
-      usdc = await MockUSDC.deploy();
+      const MockUSDL = await ethers.getContractFactory("MockUSDL");
+      usdc = await MockUSDL.deploy();
     } catch {
       this.skip();
     }
@@ -268,8 +270,8 @@ describe("BetCOFI", function () {
 
     it("Should only allow factory to call setResolution", async function () {
       const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "bool", "bool", "uint256", "bytes32"],
-        [await bet.getAddress(), true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+        ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+        [await bet.getAddress(), true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash, 0n, ""]
       );
 
       await expect(
@@ -295,8 +297,8 @@ describe("BetCOFI", function () {
 
     it("Should emit BetResolved event", async function () {
       const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "bool", "bool", "uint256", "bytes32"],
-        [await bet.getAddress(), true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+        ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+        [await bet.getAddress(), true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash, 6500050n, "Yes"]
       );
       const message = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "bytes"],
@@ -316,8 +318,8 @@ describe("BetCOFI", function () {
     it("Should emit BetUndetermined event when undetermined", async function () {
       const betAddress = await bet.getAddress();
       const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "bool", "bool", "uint256", "bytes32"],
-        [betAddress, false, true, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+        ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+        [betAddress, false, true, Math.floor(Date.now() / 1000), ethers.ZeroHash, 0n, ""]
       );
       const message = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "bytes"],
@@ -329,8 +331,8 @@ describe("BetCOFI", function () {
     });
   });
 
-  describe("setResolution - UNDETERMINED edge cases", function () {
-    it("Should set UNDETERMINED when side A wins but has no bets", async function () {
+  describe("setResolution - Empty winner side refunds losers", function () {
+    it("Should set RESOLVED and allow loser refund when side A wins but has no bets", async function () {
       // Only bet on side B
       await usdc.connect(bettor2).approve(await factory.getAddress(), USDC_AMOUNT(100));
       await factory.connect(bettor2).placeBet(await bet.getAddress(), false, USDC_AMOUNT(100));
@@ -342,10 +344,17 @@ describe("BetCOFI", function () {
       // Oracle says side A wins, but no one bet on A
       await simulateBridgeResolution(await bet.getAddress(), true, false);
 
-      expect(await bet.status()).to.equal(3); // UNDETERMINED
+      expect(await bet.status()).to.equal(2); // RESOLVED (not UNDETERMINED)
+      expect(await bet.isSideAWinner()).to.be.true;
+
+      // Side B loser can claim refund since no winners exist
+      const balanceBefore = await usdc.balanceOf(bettor2.address);
+      await bet.connect(bettor2).claim();
+      const balanceAfter = await usdc.balanceOf(bettor2.address);
+      expect(balanceAfter - balanceBefore).to.equal(USDC_AMOUNT(100)); // Full refund
     });
 
-    it("Should set UNDETERMINED when side B wins but has no bets", async function () {
+    it("Should set RESOLVED and allow loser refund when side B wins but has no bets", async function () {
       // Only bet on side A
       await usdc.connect(bettor1).approve(await factory.getAddress(), USDC_AMOUNT(100));
       await factory.connect(bettor1).placeBet(await bet.getAddress(), true, USDC_AMOUNT(100));
@@ -357,7 +366,14 @@ describe("BetCOFI", function () {
       // Oracle says side B wins, but no one bet on B
       await simulateBridgeResolution(await bet.getAddress(), false, false);
 
-      expect(await bet.status()).to.equal(3); // UNDETERMINED
+      expect(await bet.status()).to.equal(2); // RESOLVED (not UNDETERMINED)
+      expect(await bet.isSideAWinner()).to.be.false;
+
+      // Side A loser can claim refund since no winners exist
+      const balanceBefore = await usdc.balanceOf(bettor1.address);
+      await bet.connect(bettor1).claim();
+      const balanceAfter = await usdc.balanceOf(bettor1.address);
+      expect(balanceAfter - balanceBefore).to.equal(USDC_AMOUNT(100)); // Full refund
     });
   });
 

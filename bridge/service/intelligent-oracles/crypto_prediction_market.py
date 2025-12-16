@@ -103,15 +103,17 @@ class CryptoPredictionMarket(gl.Contract):
         timestamp = int(datetime.now().timestamp())
         tx_hash = bytes(32)  # Empty hash placeholder
 
-        # Step 1: Encode resolution data: (address, bool, bool, uint256, bytes32)
-        resolution_abi = [Address, bool, bool, u256, bytes]
+        # Step 1: Encode resolution data: (address, bool, bool, uint256, bytes32, uint256, string)
+        resolution_abi = [Address, bool, bool, u256, bytes, u256, str]
         resolution_encoder = genvm_eth.MethodEncoder("", resolution_abi, bool)
         resolution_data = resolution_encoder.encode_call([
             Address(self.market_id),  # bet address
             side_a_wins,
             is_undetermined,
             u256(timestamp),
-            tx_hash
+            tx_hash,
+            self.resolved_price,      # price value (in cents)
+            self.winning_side         # winning side name
         ])[4:]  # Remove method selector
 
         # Step 2: Wrap with target contract address: (address, bytes)

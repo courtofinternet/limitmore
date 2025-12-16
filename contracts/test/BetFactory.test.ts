@@ -16,22 +16,22 @@ describe("BetFactoryCOFI", function () {
   const USDC_AMOUNT = (amount: number) => ethers.parseUnits(amount.toString(), 6);
 
   // Deploy a simple ERC20 mock for testing
-  async function deployMockUSDC() {
+  async function deployMockUSDL() {
     const MockERC20 = await ethers.getContractFactory("@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20");
     // We'll use a simple approach - deploy BetFactoryCOFI first and manually handle USDC
     // For testing, we'll create a minimal mock
-    const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    return await MockUSDC.deploy();
+    const MockUSDL = await ethers.getContractFactory("MockUSDL");
+    return await MockUSDL.deploy();
   }
 
   beforeEach(async function () {
     [deployer, creator1, creator2, bettor, bridgeReceiver] = await ethers.getSigners();
 
-    // Deploy MockUSDC - we need to create this contract first
+    // Deploy MockUSDL - we need to create this contract first
     // For now, let's check if it exists, otherwise we'll inline deploy
     try {
-      const MockUSDC = await ethers.getContractFactory("MockUSDC");
-      usdc = await MockUSDC.deploy();
+      const MockUSDL = await ethers.getContractFactory("MockUSDL");
+      usdc = await MockUSDL.deploy();
     } catch {
       // If MockUSDC doesn't exist, skip these tests
       this.skip();
@@ -325,8 +325,8 @@ describe("BetFactoryCOFI", function () {
 
     it("Should only allow bridgeReceiver to call processBridgeMessage", async function () {
       const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "bool", "bool", "uint256", "bytes32"],
-        [betAddress, true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+        ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+        [betAddress, true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash, 0n, ""]
       );
       const message = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "bytes"],
@@ -340,8 +340,8 @@ describe("BetFactoryCOFI", function () {
 
     it("Should process bridge message and resolve bet", async function () {
       const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "bool", "bool", "uint256", "bytes32"],
-        [betAddress, true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+        ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+        [betAddress, true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash, 6500050n, "Yes"]
       );
       const message = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "bytes"],
@@ -359,8 +359,8 @@ describe("BetFactoryCOFI", function () {
     it("Should reject unknown bet contract", async function () {
       const fakeBet = ethers.Wallet.createRandom().address;
       const resolutionData = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "bool", "bool", "uint256", "bytes32"],
-        [fakeBet, true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash]
+        ["address", "bool", "bool", "uint256", "bytes32", "uint256", "string"],
+        [fakeBet, true, false, Math.floor(Date.now() / 1000), ethers.ZeroHash, 0n, ""]
       );
       const message = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "bytes"],
