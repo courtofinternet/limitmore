@@ -374,7 +374,6 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                         >
                             <div>
                                 <div>{market?.sideAName ?? 'YES'}</div>
-                                <div className={styles.outcomeSubtext}>To Win {selectedOutcome === 'YES' ? potentialPayout : '0'} USDL</div>
                             </div>
                             {selectedOutcome === 'YES' && <span>Do it</span>}
                         </button>
@@ -384,7 +383,6 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                         >
                             <div>
                                 <div>{market?.sideBName ?? 'NO'}</div>
-                                <div className={styles.outcomeSubtext}>To Win {selectedOutcome === 'NO' ? potentialPayout : '0'} USDL</div>
                             </div>
                             {selectedOutcome === 'NO' && <span>Do it</span>}
                         </button>
