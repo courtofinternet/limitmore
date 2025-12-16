@@ -1,5 +1,5 @@
 import { Abi } from 'viem';
-import { writeContract } from '@wagmi/core';
+import { writeContract, switchChain } from '@wagmi/core';
 import { baseSepolia } from 'viem/chains';
 import { wagmiConfig } from './wagmiConfig';
 import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
@@ -30,7 +30,12 @@ export async function createBet(params: {
     if (isFactoryStubbed()) {
         return;
     }
+
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
         functionName: 'createBet',
@@ -50,7 +55,12 @@ export async function setCreatorApproval(creator: `0x${string}`, approved: boole
     if (isFactoryStubbed()) {
         return;
     }
+
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
         functionName: 'setCreatorApproval',
@@ -59,7 +69,11 @@ export async function setCreatorApproval(creator: `0x${string}`, approved: boole
 }
 
 export async function resolveBet(betAddress: `0x${string}`) {
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: betAddress,
         abi: BET_ABI,
         functionName: 'resolve',

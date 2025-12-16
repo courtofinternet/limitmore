@@ -2,7 +2,7 @@
 // Replace placeholders with real contract details when ready.
 
 import { Abi, createPublicClient, http } from 'viem';
-import { writeContract } from '@wagmi/core';
+import { writeContract, switchChain } from '@wagmi/core';
 import { baseSepolia } from 'wagmi/chains';
 import { wagmiConfig } from './wagmiConfig';
 import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
@@ -42,8 +42,12 @@ export async function placeBet(betAddress: `0x${string}`, outcome: 'YES' | 'NO',
         throw new Error('Factory address/ABI not configured. Cannot place bet.');
     }
 
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     const amountInUnits = BigInt(Math.floor(amount * USDL_MULTIPLIER));
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
         functionName: 'placeBet',
@@ -56,7 +60,11 @@ export async function claimRewards(betAddress: `0x${string}`): Promise<void> {
         return;
     }
 
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: betAddress,
         abi: BET_ABI,
         functionName: 'claim',
@@ -89,9 +97,13 @@ export async function checkUsdlBalance(userAddress: `0x${string}`): Promise<bigi
 }
 
 export async function approveUsdlUnlimited(spenderAddress: `0x${string}`): Promise<void> {
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
 
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: USDL_ADDRESS as `0x${string}`,
         abi: MOCK_USDL_ABI,
         functionName: 'approve',
@@ -100,7 +112,11 @@ export async function approveUsdlUnlimited(spenderAddress: `0x${string}`): Promi
 }
 
 export async function dripUsdl(): Promise<void> {
+    // Ensure we're on the correct chain
+    await switchChain(wagmiConfig, { chainId: baseSepolia.id });
+
     await writeContract(wagmiConfig, {
+        chainId: baseSepolia.id,
         address: USDL_ADDRESS as `0x${string}`,
         abi: MOCK_USDL_ABI,
         functionName: 'drip',
