@@ -1,10 +1,19 @@
 .container {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
+    gap: 32px;
     height: 100%;
     width: 100%;
     padding: var(--spacing-xl);
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.infoPanel {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 /* Removed Prophet Card Styles */
@@ -340,4 +349,36 @@
     display: flex;
     overflow: hidden;
     margin-top: 8px;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+        padding: var(--spacing-md);
+    }
+
+    .infoPanel {
+        width: 100%;
+        max-width: 420px;
+    }
+
+    .marketFocusCard {
+        width: 100%;
+        max-width: 440px;
+        height: auto;
+        min-height: 500px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 16px;
+    }
+
+    .marketFocusCard {
+        padding: 16px;
+    }
 }

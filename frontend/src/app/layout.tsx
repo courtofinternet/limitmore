@@ -11,8 +11,13 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Limitmore Exchange",
+  title: "Limitless x GenLayer",
   description: "Court of Internet's Limitmore Exchange",
+  icons: {
+    icon: "/cofi.png",
+    apple: "/cofi.png",
+    shortcut: "/cofi.png",
+  },
 };
 
 export default function RootLayout({

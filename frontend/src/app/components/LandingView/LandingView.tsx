@@ -10,6 +10,7 @@ import { useToast } from '../../providers/ToastProvider';
 import { formatAddress } from '../../../utils/formatters';
 import CopyIcon from '../Shared/CopyIcon';
 import ResolutionRules from '../Shared/ResolutionRules';
+import GenLayerInfo from '../GenLayerInfo/GenLayerInfo';
 
 const LandingView: React.FC = () => {
     const router = useRouter();
@@ -18,6 +19,7 @@ const LandingView: React.FC = () => {
     const [navStartIndex, setNavStartIndex] = React.useState<number>(0);
     const [markets, setMarkets] = React.useState<MarketData[]>([]);
     const [loading, setLoading] = React.useState<boolean>(true);
+    const [showInfoPanel, setShowInfoPanel] = React.useState<boolean>(true);
 
     React.useEffect(() => {
         let cancelled = false;
@@ -81,6 +83,13 @@ const LandingView: React.FC = () => {
 
     return (
         <div className={styles.container}>
+            {/* GenLayer Info Panel */}
+            {showInfoPanel && (
+                <div className={styles.infoPanel}>
+                    <GenLayerInfo onClose={() => setShowInfoPanel(false)} />
+                </div>
+            )}
+
             {/* Focus Market Card */}
             <div className={styles.marketFocusCard}>
                 {loading || !selectedMarket ? (
