@@ -1,8 +1,10 @@
 // Centralized write helpers for Base chain integration.
 // Replace placeholders with real contract details when ready.
 
-import { Abi, createWalletClient, custom, createPublicClient, http } from 'viem';
+import { Abi, createPublicClient, http } from 'viem';
+import { writeContract } from '@wagmi/core';
 import { baseSepolia } from 'wagmi/chains';
+import { wagmiConfig } from './wagmiConfig';
 import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
 import { USDL_ADDRESS, FACTORY_ADDRESS, MOCK_USDL_ABI, USDL_MULTIPLIER } from '../constants';
 import BetArtifact from '../contracts/BetCOFI.json';
@@ -23,20 +25,6 @@ function isFactoryConfigured() {
     return !isZero && hasAbi;
 }
 
-async function getWalletClient() {
-    if (typeof window === 'undefined' || !(window as any).ethereum) {
-        throw new Error('No wallet provider found. Please connect a wallet.');
-    }
-    const client = createWalletClient({
-        chain: baseSepolia,
-        transport: custom((window as any).ethereum)
-    });
-    const [account] = await client.getAddresses();
-    if (!account) {
-        throw new Error('Wallet not connected');
-    }
-    return { client, account: account as `0x${string}` };
-}
 
 function getPublicClient() {
     return createPublicClient({
@@ -55,10 +43,7 @@ export async function placeBet(betAddress: `0x${string}`, outcome: 'YES' | 'NO',
     }
 
     const amountInUnits = BigInt(Math.floor(amount * USDL_MULTIPLIER));
-    const { client, account } = await getWalletClient();
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
         functionName: 'placeBet',
@@ -71,10 +56,7 @@ export async function claimRewards(betAddress: `0x${string}`): Promise<void> {
         return;
     }
 
-    const { client, account } = await getWalletClient();
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: betAddress,
         abi: BET_ABI,
         functionName: 'claim',
@@ -107,12 +89,9 @@ export async function checkUsdlBalance(userAddress: `0x${string}`): Promise<bigi
 }
 
 export async function approveUsdlUnlimited(spenderAddress: `0x${string}`): Promise<void> {
-    const { client, account } = await getWalletClient();
     const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
 
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: USDL_ADDRESS as `0x${string}`,
         abi: MOCK_USDL_ABI,
         functionName: 'approve',
@@ -121,11 +100,7 @@ export async function approveUsdlUnlimited(spenderAddress: `0x${string}`): Promi
 }
 
 export async function dripUsdl(): Promise<void> {
-    const { client, account } = await getWalletClient();
-
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: USDL_ADDRESS as `0x${string}`,
         abi: MOCK_USDL_ABI,
         functionName: 'drip',

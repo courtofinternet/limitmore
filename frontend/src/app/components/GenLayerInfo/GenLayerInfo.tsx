@@ -34,9 +34,27 @@ const GenLayerInfo: React.FC<GenLayerInfoProps> = ({ onClose }) => {
             <div className={styles.content}>
 
                 <p className={styles.description}>
-                    This is a prediction market inspired by Limitless but powered by GenLayer
-                    as the resolution layer. Genlayer's Optimistic Democracy automatically resolve markets using real-world
-                    data instead of human oracles.
+                    Limitmore is a playground project inspired by{' '}
+                    <a
+                        href="https://limitless.exchange/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#0f172a', textDecoration: 'underline' }}
+                    >
+                        Limitless
+                    </a>
+                    {' '}and exploring how <strong>GenLayer's Intelligent Contracts</strong> can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
+                </p>
+
+                <ul className={styles.description} style={{ paddingLeft: '20px', margin: '10px 0' }}>
+                    <li>Fetch real-world data (crypto prices, stock prices, news)</li>
+                    <li>Process non-deterministic data</li>
+                    <li>Reach consensus across multiple AI-powered validators</li>
+                    <li>Bridge results back to Base via LayerZero</li>
+                </ul>
+
+                <p className={styles.description}>
+                    This demonstrates a new paradigm for prediction markets where resolution is transparent, verifiable, and requires no trust assumptions.
                 </p>
 
                 <a
