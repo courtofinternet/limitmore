@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
               "font-src 'self' https:",
               "connect-src 'self' https://auth.privy.io https://sepolia.base.org wss: https:",
               "frame-src 'self' https://auth.privy.io",
+              "frame-ancestors 'self' https://auth.privy.io",
               "worker-src 'self' blob:",
               "object-src 'none'"
             ].join('; ')

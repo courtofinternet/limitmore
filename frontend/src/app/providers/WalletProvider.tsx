@@ -2,7 +2,11 @@
 
 import React, { createContext, useContext, useMemo } from 'react';
 import { PrivyProvider, usePrivy, useWallets } from '@privy-io/react-auth';
+import { WagmiProvider } from '@privy-io/wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { wagmiConfig } from '../../lib/onchain/wagmiConfig';
 import { baseSepolia } from 'wagmi/chains';
+
 interface WalletContextValue {
     walletAddress: string | null;
     isConnected: boolean;
@@ -12,6 +16,8 @@ interface WalletContextValue {
 }
 
 const WalletContext = createContext<WalletContextValue | undefined>(undefined);
+
+const queryClient = new QueryClient();
 
 // Privy-backed context provider
 const PrivyWalletContextProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -53,15 +59,26 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             appId={appId ?? ''}
             clientId={clientId ?? ''}
             config={{
-                defaultChain: baseSepolia,
-                loginMethods: ['wallet'],
                 appearance: {
                     theme: 'light',
-                    accentColor: '#0f172a'
-                }
+                    accentColor: '#0f172a',
+                    logo: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🥤</text></svg>",
+                },
+                loginMethods: ['wallet'],
+                embeddedWallets: {
+                    ethereum: {
+                        createOnLogin: 'users-without-wallets'
+                    }
+                },
+                defaultChain: baseSepolia,
+                supportedChains: [baseSepolia],
             }}
         >
-            <PrivyWalletContextProvider>{children}</PrivyWalletContextProvider>
+            <QueryClientProvider client={queryClient}>
+                <WagmiProvider config={wagmiConfig}>
+                    <PrivyWalletContextProvider>{children}</PrivyWalletContextProvider>
+                </WagmiProvider>
+            </QueryClientProvider>
         </PrivyProvider>
     );
 };
