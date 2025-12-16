@@ -1,5 +1,7 @@
-import { Abi, createWalletClient, custom } from 'viem';
+import { Abi } from 'viem';
+import { writeContract } from '@wagmi/core';
 import { baseSepolia } from 'viem/chains';
+import { wagmiConfig } from './wagmiConfig';
 import BetFactoryArtifact from '../contracts/BetFactoryCOFI.json';
 import BetArtifact from '../contracts/BetCOFI.json';
 
@@ -9,20 +11,6 @@ const FACTORY_ADDRESS =
 const FACTORY_ABI = (BetFactoryArtifact as { abi: Abi }).abi as Abi;
 const BET_ABI = (BetArtifact as { abi: Abi }).abi as Abi;
 
-async function getWalletClient() {
-    if (typeof window === 'undefined' || !(window as any).ethereum) {
-        throw new Error('No wallet provider found');
-    }
-    const client = createWalletClient({
-        chain: baseSepolia,
-        transport: custom((window as any).ethereum)
-    });
-    const [account] = await client.getAddresses();
-    if (!account) {
-        throw new Error('Wallet not connected');
-    }
-    return { client, account: account as `0x${string}` };
-}
 
 function isFactoryStubbed() {
     const isZero = FACTORY_ADDRESS === '0x0000000000000000000000000000000000000000';
@@ -42,10 +30,7 @@ export async function createBet(params: {
     if (isFactoryStubbed()) {
         return;
     }
-    const { client, account } = await getWalletClient();
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
         functionName: 'createBet',
@@ -65,10 +50,7 @@ export async function setCreatorApproval(creator: `0x${string}`, approved: boole
     if (isFactoryStubbed()) {
         return;
     }
-    const { client, account } = await getWalletClient();
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
         functionName: 'setCreatorApproval',
@@ -77,10 +59,7 @@ export async function setCreatorApproval(creator: `0x${string}`, approved: boole
 }
 
 export async function resolveBet(betAddress: `0x${string}`) {
-    const { client, account } = await getWalletClient();
-    await client.writeContract({
-        chain: baseSepolia,
-        account,
+    await writeContract(wagmiConfig, {
         address: betAddress,
         abi: BET_ABI,
         functionName: 'resolve',
