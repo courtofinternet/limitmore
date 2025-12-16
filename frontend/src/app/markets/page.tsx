@@ -90,8 +90,7 @@ export default function MarketsPage() {
         const matchesCategory =
             activeCategory === 'All' ||
             (activeCategory === 'Crypto' && market.category === 'CRYPTO') ||
-            (activeCategory === 'Economy' && market.category === 'STOCKS') ||
-            (activeCategory === 'Company News' && market.category === 'STOCKS');
+            (activeCategory === 'Economy' && market.category === 'STOCKS');
         return matchesCategory;
     });
 

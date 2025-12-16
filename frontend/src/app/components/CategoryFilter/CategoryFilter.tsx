@@ -4,8 +4,7 @@ import styles from './CategoryFilter.module.css';
 const CATEGORIES = [
     "All",
     "Crypto",
-    "Economy",
-    "Company News"
+    "Economy"
 ];
 
 interface CategoryFilterProps {

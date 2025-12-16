@@ -137,7 +137,6 @@ const AdminPage: React.FC = () => {
                         <select className={styles.input} value={form.resolutionType} onChange={(e) => setForm({ ...form, resolutionType: e.target.value })}>
                             <option value="0">CRYPTO</option>
                             <option value="1">STOCKS</option>
-                            <option value="2">NEWS</option>
                         </select>
                         <input className={styles.input} placeholder="Symbol (e.g., BTC or AAPL)" value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} />
                         <input className={styles.input} placeholder="Name (e.g., Bitcoin)" value={form.tokenName} onChange={(e) => setForm({ ...form, tokenName: e.target.value })} />

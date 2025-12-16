@@ -1,20 +1,12 @@
-# Limitmore Exchange
+# Limitless
 
-A prediction market platform built with Next.js where users can trade on the outcomes of future events.
+Prediction market platform powered by GenLayer for AI-driven resolution.
 
-## Getting Started
-
-Install dependencies and run the development server:
+## Quick Start
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the application.
-
-## Tech Stack
-
-- **Next.js 15** - React framework
-- **TypeScript** - Type safety
-- **CSS Modules** - Component styling
+Visit [http://localhost:3000](http://localhost:3000)
