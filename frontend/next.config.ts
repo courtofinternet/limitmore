@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://auth.privy.io https://widgets.coingecko.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://auth.privy.io https://widgets.coingecko.com https://s3.tradingview.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' https:",
