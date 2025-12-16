@@ -9,9 +9,13 @@
 import { ethers } from "hardhat";
 import { getContract, LAYER_ZERO_EIDS, addressToBytes32, getNetworkInfo, getEnvVar } from "./utils";
 
-// Contract addresses from env (with fallback defaults)
-const BRIDGE_FORWARDER_ZKSYNC = process.env.BRIDGE_FORWARDER_ADDRESS || "0x331BF7c686e22ce6588d626626660f1Fdbc4Ef12";
-const BRIDGE_RECEIVER_BASE = process.env.DST_BRIDGE_ADDRESS || "0x57E892519a67C44661533fCBCc40A1AeaFE7f529";
+// Contract addresses from env (required)
+const BRIDGE_FORWARDER_ZKSYNC = process.env.BRIDGE_FORWARDER_ADDRESS;
+const BRIDGE_RECEIVER_BASE = process.env.DST_BRIDGE_ADDRESS;
+
+if (!BRIDGE_FORWARDER_ZKSYNC || !BRIDGE_RECEIVER_BASE) {
+  throw new Error("Missing required env vars: BRIDGE_FORWARDER_ADDRESS, DST_BRIDGE_ADDRESS");
+}
 
 async function checkZkSync() {
   console.log("\n=== BridgeForwarder on zkSync Sepolia ===");

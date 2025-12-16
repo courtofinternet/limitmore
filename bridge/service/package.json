@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@layerzerolabs/lz-v2-utilities": "^3.0.61",
     "dotenv": "^16.4.5",

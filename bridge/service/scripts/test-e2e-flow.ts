@@ -24,8 +24,6 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// MockUSDL on Base Sepolia
-const TOKEN_ADDRESS = process.env.MOCK_USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7";
 const BET_AMOUNT_A = 10_000n; // 0.01 USDL (1 cent)
 const BET_AMOUNT_B = 20_000n; // 0.02 USDL (2 cents)
 
@@ -65,12 +63,13 @@ function getConfig() {
   const baseSepoliaRpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
   const betFactoryAddress = process.env.BET_FACTORY_ADDRESS;
   const privateKey = process.env.PRIVATE_KEY;
+  const mockUsdlAddress = process.env.MOCK_USDL_ADDRESS;
 
-  if (!baseSepoliaRpcUrl || !betFactoryAddress || !privateKey) {
-    throw new Error("Missing required env vars: BASE_SEPOLIA_RPC_URL, BET_FACTORY_ADDRESS, PRIVATE_KEY");
+  if (!baseSepoliaRpcUrl || !betFactoryAddress || !privateKey || !mockUsdlAddress) {
+    throw new Error("Missing required env vars: BASE_SEPOLIA_RPC_URL, BET_FACTORY_ADDRESS, PRIVATE_KEY, MOCK_USDL_ADDRESS");
   }
 
-  return { baseSepoliaRpcUrl, betFactoryAddress, privateKey };
+  return { baseSepoliaRpcUrl, betFactoryAddress, privateKey, mockUsdlAddress };
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -172,7 +171,7 @@ async function main() {
   // ============================================
   console.log("\n--- Step 2: Placing Bets ---");
 
-  const token = new ethers.Contract(TOKEN_ADDRESS, ERC20_ABI, wallet);
+  const token = new ethers.Contract(config.mockUsdlAddress, ERC20_ABI, wallet);
 
   // Check MockUSDL balance
   const tokenBalance = await token.balanceOf(wallet.address);
@@ -183,7 +182,7 @@ async function main() {
   if (tokenBalance < requiredToken) {
     console.log("\n  Insufficient USDL balance!");
     console.log("  Call drip() on MockUSDL contract to get test tokens:");
-    console.log(`  MockUSDL Address: ${TOKEN_ADDRESS}`);
+    console.log(`  MockUSDL Address: ${config.mockUsdlAddress}`);
     throw new Error(`Insufficient USDL: have ${Number(tokenBalance) / 1e6}, need ${Number(requiredToken) / 1e6}`);
   }
 

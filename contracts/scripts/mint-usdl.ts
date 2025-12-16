@@ -1,9 +1,14 @@
 import { ethers } from "hardhat";
 
 async function main() {
-  const usdlAddress = process.env.USDL_ADDRESS || "0xeA2d0cb43E1a8462C4958657Dd13f300A73574f7";
-  const recipient = process.env.RECIPIENT || "0x08E9F4723CF5A27866bB11eD2C41162e05206777";
+  const usdlAddress = process.env.USDL_ADDRESS;
+  const recipient = process.env.RECIPIENT;
   const amount = process.env.AMOUNT || "1000";
+
+  if (!usdlAddress || !recipient) {
+    console.log("Usage: USDL_ADDRESS=0x... RECIPIENT=0x... [AMOUNT=1000] npx hardhat run scripts/mint-usdl.ts --network baseSepolia");
+    throw new Error("Missing required env vars: USDL_ADDRESS, RECIPIENT");
+  }
 
   const usdl = await ethers.getContractAt("MockUSDL", usdlAddress);
 

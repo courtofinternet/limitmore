@@ -3,7 +3,7 @@
  *
  * Bidirectional relay service:
  * - GenLayer → EVM: Polls GenLayer and relays via LayerZero
- * - EVM → GenLayer: Listens for events and forwards to GenLayer
+ * - EVM → GenLayer: Listens for events and deploys intelligent oracles to GenLayer
  */
 
 import cron from "node-cron";
