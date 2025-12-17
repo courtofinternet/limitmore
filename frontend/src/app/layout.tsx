@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Prediction MarKit",
+  title: "PM Kit",
   description: "An experimental playground for fully on-chain prediction market resolution.",
   icons: {
     icon: "/cofi.png",

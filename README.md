@@ -1,14 +1,14 @@
-# Prediction MarKit
+# PM Kit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**An experimental playground for fully on-chain prediction market resolution.**
+**An experimental playground for fully on-chain prediction market resolutions.**
 
 [Powered by GenLayer](https://genlayer.com/)
 
 ## About
 
-Prediction MarKit is a playground project exploring how **GenLayer's Intelligent Contracts** can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
+PM Kit is a playground project exploring how **GenLayer's Intelligent Contracts** can enable trustless, fully on-chain prediction market resolutions. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
 
 - Fetch real-world data (crypto prices, stock prices, news)
 - Process non-deterministic data

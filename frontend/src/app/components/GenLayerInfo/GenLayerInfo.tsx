@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import styles from './GenLayerInfo.module.css';
 
 interface GenLayerInfoProps {
@@ -10,10 +11,20 @@ const GenLayerInfo: React.FC<GenLayerInfoProps> = ({ onClose }) => {
         <div className={styles.container}>
             <button className={styles.closeButton} onClick={onClose}>✕</button>
 
+            <div className={styles.logoSection}>
+                <Image
+                    src="/genlayer-logo.webp"
+                    alt="GenLayer"
+                    width={100}
+                    height={100}
+                    className={styles.logo}
+                />
+            </div>
+
             <div className={styles.content}>
 
-                <p className={styles.description}>
-                    Prediction MarKit is a playground project exploring how <strong>GenLayer's Intelligent Contracts</strong> can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
+                <p className={styles.description} style={{ marginBottom: '10px' }}>
+                    PM Kit is a playground project exploring how <strong>GenLayer's Intelligent Contracts</strong> can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
                 </p>
 
                 <ul className={styles.description} style={{ paddingLeft: '20px', margin: '10px 0' }}>
@@ -28,7 +39,7 @@ const GenLayerInfo: React.FC<GenLayerInfoProps> = ({ onClose }) => {
                 </p>
 
                 <a
-                    href="https://github.com/courtofinternet/predictionmarkit"
+                    href="https://github.com/courtofinternet/pm-kit"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.githubLink}

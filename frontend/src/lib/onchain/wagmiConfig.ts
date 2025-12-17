@@ -6,7 +6,7 @@ export const wagmiConfig = createConfig({
     chains: [baseSepolia],
     connectors: [
         injected(),
-        coinbaseWallet({ appName: 'Prediction MarKit' })
+        coinbaseWallet({ appName: 'PM Kit' })
     ],
     transports: {
         [baseSepolia.id]: http('https://sepolia.base.org')
