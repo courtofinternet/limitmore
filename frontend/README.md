@@ -1,4 +1,4 @@
-# Limitless
+# PM Kit
 
 Prediction market platform powered by GenLayer for AI-driven resolution.
 
