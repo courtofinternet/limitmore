@@ -114,7 +114,7 @@ export default function MarketPage() {
                                 marginBottom: '24px',
                                 maxWidth: '500px'
                             }}>
-                                This address does not correspond to any existing market on Limitmore.
+                                This address does not correspond to any existing market on Prediction MarKit.
                             </p>
                             <button
                                 onClick={() => router.push('/markets')}

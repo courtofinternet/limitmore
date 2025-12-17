@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Limitmore",
-  description: "Court of Internet's Limitmore Exchange",
+  title: "Prediction MarKit",
+  description: "An experimental playground for fully on-chain prediction market resolution.",
   icons: {
     icon: "/cofi.png",
     apple: "/cofi.png",

@@ -1,4 +1,4 @@
-# Limitmore
+# Prediction MarKit
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -8,7 +8,7 @@
 
 ## About
 
-Limitmore is a playground project inspired by [Limitless](https://limitless.exchange/) and exploring how **GenLayer's Intelligent Contracts** can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
+Prediction MarKit is a playground project exploring how **GenLayer's Intelligent Contracts** can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
 
 - Fetch real-world data (crypto prices, stock prices, news)
 - Process non-deterministic data

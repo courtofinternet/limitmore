@@ -1,5 +1,4 @@
 import React from 'react';
-import Image from 'next/image';
 import styles from './GenLayerInfo.module.css';
 
 interface GenLayerInfoProps {
@@ -7,43 +6,14 @@ interface GenLayerInfoProps {
 }
 
 const GenLayerInfo: React.FC<GenLayerInfoProps> = ({ onClose }) => {
-    const [imageError, setImageError] = React.useState(false);
-
     return (
         <div className={styles.container}>
             <button className={styles.closeButton} onClick={onClose}>✕</button>
 
-            <div className={styles.imageSection}>
-                {!imageError ? (
-                    <Image
-                        src="/genlayer-hero.png"
-                        alt="GenLayer AI Resolution"
-                        width={300}
-                        height={180}
-                        className={styles.image}
-                        onError={() => setImageError(true)}
-                    />
-                ) : (
-                    <div className={styles.placeholderImage}>
-                        <div className={styles.imageIcon}>🤖</div>
-                        <div className={styles.imageText}>GenLayer AI</div>
-                    </div>
-                )}
-            </div>
-
             <div className={styles.content}>
 
                 <p className={styles.description}>
-                    Limitmore is a playground project inspired by{' '}
-                    <a
-                        href="https://limitless.exchange/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: '#0f172a', textDecoration: 'underline' }}
-                    >
-                        Limitless
-                    </a>
-                    {' '}and exploring how <strong>GenLayer's Intelligent Contracts</strong> can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
+                    Prediction MarKit is a playground project exploring how <strong>GenLayer's Intelligent Contracts</strong> can enable trustless, fully on-chain prediction market resolution. Instead of relying on centralized oracles, markets are resolved by GenLayer validators that:
                 </p>
 
                 <ul className={styles.description} style={{ paddingLeft: '20px', margin: '10px 0' }}>
@@ -58,7 +28,7 @@ const GenLayerInfo: React.FC<GenLayerInfoProps> = ({ onClose }) => {
                 </p>
 
                 <a
-                    href="https://github.com/courtofinternet/limitmore/"
+                    href="https://github.com/courtofinternet/predictionmarkit"
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.githubLink}

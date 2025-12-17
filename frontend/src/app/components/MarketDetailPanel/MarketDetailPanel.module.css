@@ -265,7 +265,7 @@
 .unselectedOutcome {
     opacity: 0.4;
     /* Maybe grayscale or just transparent? */
-    /* Limitless style: unused options fade out */
+    /* Design: unused options fade out */
 }
 
 .selectedOutcome {
