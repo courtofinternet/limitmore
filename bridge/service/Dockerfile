@@ -1,20 +1,3 @@
-FROM node:20-alpine as build
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Build TypeScript code
-RUN npm run build
-
-# Second stage: Production stage
 FROM node:20-alpine
 
 WORKDIR /app
@@ -22,18 +5,24 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --production
+# Install dependencies
+RUN npm ci --production=false
 
-# Copy built files from build stage
-COPY --from=build /app/dist ./dist
+# Copy source code
+COPY . .
 
-# Copy and setup entrypoint script
-COPY docker-entrypoint.sh .
-RUN chmod +x docker-entrypoint.sh
+# Build the application
+RUN npm run build
 
-# Expose port if needed (adjust port number as required)
-EXPOSE 3000
+# Remove dev dependencies
+RUN npm ci --production && npm cache clean --force
 
-# Use the entrypoint script to run both services
-ENTRYPOINT ["./docker-entrypoint.sh"] 
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+
+# Start the application
+CMD ["npm", "start"]

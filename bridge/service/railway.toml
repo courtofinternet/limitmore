@@ -10,3 +10,7 @@ restartPolicyType = "always"
 [environment]
 NODE_ENV = "production"
 PORT = "3001"
+
+[nixpacks]
+# Explicitly set to Node.js provider
+provider = "node"
