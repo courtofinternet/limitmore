@@ -85,14 +85,21 @@ export default function MarketsPage() {
         }
     }, [selectedMarket, selectedMarketId, selectedMarketData]);
 
-    const filteredMarkets = currentMarkets.filter(market => {
-        // Map UI category labels to contract enums
-        const matchesCategory =
-            activeCategory === 'All' ||
-            (activeCategory === 'Crypto' && market.category === 'CRYPTO') ||
-            (activeCategory === 'Economy' && market.category === 'STOCKS');
-        return matchesCategory;
-    });
+    const filteredMarkets = currentMarkets
+        .filter(market => {
+            // Map UI category labels to contract enums
+            const matchesCategory =
+                activeCategory === 'All' ||
+                (activeCategory === 'Crypto' && market.category === 'CRYPTO') ||
+                (activeCategory === 'Economy' && market.category === 'STOCKS');
+            return matchesCategory;
+        })
+        .sort((a, b) => {
+            // Sort by deadline earliest to latest
+            const aTime = typeof a.deadline === 'string' ? parseInt(a.deadline, 10) || 0 : a.deadline || 0;
+            const bTime = typeof b.deadline === 'string' ? parseInt(b.deadline, 10) || 0 : b.deadline || 0;
+            return aTime - bTime;
+        });
 
     const isGridLoading = isLoading;
     const isEmpty = !isGridLoading && filteredMarkets.length === 0;

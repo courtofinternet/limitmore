@@ -128,7 +128,7 @@ const UserBetDisplay: React.FC<UserBetDisplayProps> = ({ market, variant = 'full
 
     // Use market data for resolution info instead of contract call
     const isResolved = market.state === 'RESOLVED' || market.state === 'UNDETERMINED';
-    const isSideAWinner = market.resolvedOutcome === 'YES';
+    const isSideAWinner = market.resolvedOutcome === market.sideAName;
 
     const userWonA = isResolved && isSideAWinner && betData.onSideA > 0;
     const userWonB = isResolved && !isSideAWinner && betData.onSideB > 0;

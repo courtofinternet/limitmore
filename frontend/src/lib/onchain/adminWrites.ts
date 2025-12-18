@@ -34,7 +34,7 @@ export async function createBet(params: {
     // Ensure we're on the correct chain
     await switchChain(wagmiConfig, { chainId: baseSepolia.id });
 
-    await writeContract(wagmiConfig, {
+    const hash = await writeContract(wagmiConfig, {
         chainId: baseSepolia.id,
         address: FACTORY_ADDRESS as `0x${string}`,
         abi: FACTORY_ABI,
@@ -49,6 +49,8 @@ export async function createBet(params: {
             params.resolutionData
         ]
     });
+
+    return hash;
 }
 
 export async function setCreatorApproval(creator: `0x${string}`, approved: boolean) {

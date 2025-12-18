@@ -10,6 +10,13 @@ import { createBet, resolveBet, setCreatorApproval } from '../../lib/onchain/adm
 import { MarketData } from '../../data/markets';
 import { encodeAbiParameters, parseAbiParameters } from 'viem';
 import { formatResolutionDate } from '../../utils/formatters';
+import { scheduleResolution } from '../../lib/api/resolutionApi';
+import { waitForTransactionReceipt } from '@wagmi/core';
+import { wagmiConfig } from '../../lib/onchain/wagmiConfig';
+import { baseSepolia } from 'viem/chains';
+import { parseEventLogs } from 'viem';
+import BetFactoryArtifact from '../../lib/contracts/BetFactoryCOFI.json';
+import { FACTORY_ADDRESS } from '../../lib/constants';
 
 const AdminPage: React.FC = () => {
     const router = useRouter();
@@ -58,16 +65,87 @@ const AdminPage: React.FC = () => {
                 form.symbol && form.tokenName
                     ? encodeAbiParameters(parseAbiParameters('string,string'), [form.symbol, form.tokenName])
                     : ('0x' as `0x${string}`);
-            await createBet({
+
+            const endDateMs = new Date(form.endDate).getTime();
+            const endDateSeconds = Math.floor(endDateMs / 1000);
+
+            // Create bet and get transaction hash
+            const txHash = await createBet({
                 title: form.title,
                 resolutionCriteria: form.resolutionCriteria,
                 sideAName: form.sideAName,
                 sideBName: form.sideBName,
-                endDate: Math.floor(new Date(form.endDate).getTime() / 1000),
+                endDate: endDateSeconds,
                 resolutionType: Number(form.resolutionType),
                 resolutionData: encodedData
             });
+
+            if (txHash) {
+                // Wait for transaction receipt
+                console.log(`Waiting for transaction: ${txHash}`);
+                const receipt = await waitForTransactionReceipt(wagmiConfig, {
+                    hash: txHash,
+                    chainId: baseSepolia.id,
+                });
+
+                // Parse BetCreated event from receipt logs
+                let contractAddress: `0x${string}` | null = null;
+
+                try {
+                    const parsedLogs = parseEventLogs({
+                        abi: (BetFactoryArtifact as any).abi,
+                        logs: receipt.logs,
+                        eventName: 'BetCreated'
+                    });
+
+                    if (parsedLogs.length > 0) {
+                        const betCreatedEvent = parsedLogs[0] as any; // Type assertion to handle viem parsing
+                        contractAddress = betCreatedEvent.args?.betAddress as `0x${string}`;
+                        console.log(`New bet contract created: ${contractAddress}`);
+                    } else {
+                        console.warn('No BetCreated event found in transaction logs');
+                    }
+                } catch (parseError) {
+                    console.error('Failed to parse BetCreated event:', parseError);
+
+                    // Fallback: manual topic parsing
+                    const betCreatedLog = receipt.logs.find(log =>
+                        log.topics.length > 1 && log.address.toLowerCase() === (FACTORY_ADDRESS as string).toLowerCase()
+                    );
+
+                    if (betCreatedLog && betCreatedLog.topics.length > 1 && betCreatedLog.topics[1]) {
+                        // Extract address from topics[1] (first indexed parameter)
+                        contractAddress = `0x${betCreatedLog.topics[1].slice(-40)}` as `0x${string}`;
+                        console.log(`Fallback parsing - contract address: ${contractAddress}`);
+                    }
+                }
+
+                if (contractAddress) {
+
+                    // Schedule automated resolution
+                    try {
+                        const scheduleResult = await scheduleResolution({
+                            contractAddress,
+                            endDate: new Date(endDateMs).toISOString(),
+                            marketTitle: form.title
+                        });
+
+                        if (scheduleResult.success) {
+                            console.log(`✅ Resolution scheduled: ${scheduleResult.jobId}`);
+                        } else {
+                            console.warn(`⚠️ Failed to schedule resolution: ${scheduleResult.message}`);
+                        }
+                    } catch (scheduleError) {
+                        console.error('Failed to schedule automated resolution:', scheduleError);
+                    }
+                } else {
+                    console.warn('Could not extract contract address from transaction receipt');
+                }
+            }
+
+            // Reload markets to show the new one
             await loadMarkets();
+
         } finally {
             setCreating(false);
         }

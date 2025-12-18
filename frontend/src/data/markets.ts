@@ -1,7 +1,7 @@
 // Shared types for markets (aligned to BetCOFI / factory contracts)
 
 export type MarketState = 'ACTIVE' | 'RESOLVING' | 'RESOLVED' | 'UNDETERMINED';
-export type MarketOutcome = 'YES' | 'NO' | 'INVALID';
+export type MarketOutcome = string;
 
 export interface MarketData {
     id: string; // contract address as ID
@@ -70,7 +70,7 @@ export async function getUserMarketStatus(contractId: string, walletAddress: str
 
         // Use market data for resolution info if provided, otherwise assume active
         const isResolved = marketData ? (marketData.state === 'RESOLVED' || marketData.state === 'UNDETERMINED') : false;
-        const isSideAWinner = marketData?.resolvedOutcome === 'YES';
+        const isSideAWinner = marketData?.resolvedOutcome === marketData?.sideAName;
 
         // Determine the primary position (larger bet)
         const primarySide = userBets.onSideA >= userBets.onSideB ? 'YES' : 'NO';

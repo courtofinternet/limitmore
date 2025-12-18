@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline' https://*.tradingview.com https://fonts.googleapis.com",
               "img-src 'self' data: https: https://*.tradingview.com",
               "font-src 'self' https: https://*.tradingview.com",
-              "connect-src 'self' https://auth.privy.io https://sepolia.base.org wss: https: https://*.tradingview.com",
+              "connect-src 'self' https://auth.privy.io https://sepolia.base.org wss: https: https://*.tradingview.com http://pmkit-backend.courtofinternet.com",
               "frame-src 'self' https://auth.privy.io https://*.tradingview.com https://tradingview-widget.com https://www.tradingview-widget.com https://charting-library.tradingview.com https://widget.tradingview.com https://tradingview-embed-widget.com",
               "frame-ancestors 'self' https://auth.privy.io",
               "worker-src 'self' blob:",

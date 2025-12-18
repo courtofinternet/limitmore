@@ -140,7 +140,7 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
         bigint,
         bigint,
         bigint,
-        bigint
+        string
     ];
 
     const resolutionTypeNum = Number(resolutionTypeCode ?? 0);
@@ -166,7 +166,7 @@ async function fetchMarketInfo(betAddress: `0x${string}`): Promise<MarketData> {
     let finalPrice: number | undefined = undefined;
 
     if (status === "RESOLVED") {
-        resolvedOutcome = _isSideAWinner ? "YES" : "NO";
+        resolvedOutcome = _winnerValue;
         // Convert resolvedPrice from contract (divide by 100 to get proper decimal format)
         finalPrice = Number(_resolvedPrice) / 100;
     }

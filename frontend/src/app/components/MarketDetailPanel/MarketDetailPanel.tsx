@@ -187,11 +187,15 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
     const renderProgressBar = () => (
         <div className={styles.progressBarContainer}>
             <div className={styles.probabilityText}>
-                <span style={{ color: '#f97316' }}>{market?.sideAName ?? 'Side A'} {probability.toFixed(1)}%</span>
-                <span style={{ color: '#71717a' }}>{market?.sideBName ?? 'Side B'} {(100 - probability).toFixed(1)}%</span>
+                <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
+                <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
             </div>
             <div className={styles.barBackground}>
                 <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                <span style={{ fontSize: '12px', color: '#71717a' }}>{market?.sideAName ?? 'Side A'}</span>
+                <span style={{ fontSize: '12px', color: '#71717a' }}>{market?.sideBName ?? 'Side B'}</span>
             </div>
         </div>
     );
@@ -260,8 +264,6 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
 
         if (!isResolved && !isResolving) return null;
 
-        const outcomeYes = isResolved && market?.resolvedOutcome === 'YES';
-
         return (
             <div className={styles.truthBlock}>
                 <div className={styles.truthHeader}>Resolution</div>
@@ -274,9 +276,9 @@ const MarketDetailPanel: React.FC<MarketDetailPanelProps> = ({
                         <>
                             <div
                                 className={`${styles.truthOutcome} ${
-                                    outcomeYes
+                                    market?.resolvedOutcome === market?.sideAName
                                         ? styles.truthOutcomeYes
-                                        : market?.resolvedOutcome === 'NO'
+                                        : market?.resolvedOutcome === market?.sideBName
                                             ? styles.truthOutcomeNo
                                             : styles.truthOutcomeNeutral
                                 }`}

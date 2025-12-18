@@ -224,13 +224,12 @@ const MarketCard: React.FC<MarketCardProps> = ({
                     </div>
                 ) : isFinalized ? (
                     (() => {
-                        const resolvedOutcome = market.resolvedOutcome as unknown as 'YES' | 'NO' | 'INVALID' | undefined;
                         const outcomeTone =
-                            resolvedOutcome === 'YES'
+                            market.resolvedOutcome === market.sideAName
                                 ? 'yes'
-                                : resolvedOutcome === 'NO'
+                                : market.resolvedOutcome === market.sideBName
                                     ? 'no'
-                                    : resolvedOutcome === 'INVALID'
+                                    : market.resolvedOutcome === 'INVALID'
                                         ? 'invalid'
                                         : 'neutral';
 
@@ -281,7 +280,7 @@ const MarketCard: React.FC<MarketCardProps> = ({
                                                         : styles.marketOutcomeNeutral
                                         }`}
                                     >
-                                        {resolvedOutcome ?? '—'}
+                                        {market.resolvedOutcome ?? '—'}
                                     </div>
                                 </div>
 

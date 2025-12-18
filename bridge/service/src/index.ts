@@ -4,12 +4,19 @@
  * Bidirectional relay service:
  * - GenLayer → EVM: Polls GenLayer and relays via LayerZero
  * - EVM → GenLayer: Listens for events and deploys intelligent oracles to GenLayer
+ * - Automated Resolution: Schedules and executes market resolutions at exact end dates
  */
 
 import cron from "node-cron";
-import { getBridgeSyncInterval, getOptionalConfig } from "./config.js";
+import { getBridgeSyncInterval, getOptionalConfig, getHttpPort } from "./config.js";
 import { GenLayerToEvmRelay } from "./relay/GenLayerToEvm.js";
 import { EvmToGenLayerRelay } from "./relay/EvmToGenLayer.js";
+import { ResolutionQueue } from "./resolution/ResolutionQueue.js";
+import { ResolutionAPI } from "./api/ResolutionAPI.js";
+
+// Global references for graceful shutdown
+let resolutionQueue: ResolutionQueue | null = null;
+let httpServer: any = null;
 
 async function main() {
   console.log("Starting Bridge Service\n");
@@ -32,7 +39,27 @@ async function main() {
     console.log("\n[EVM→GL] Skipped (BET_FACTORY_ADDRESS not set)");
   }
 
-  console.log("\nBridge service running (both directions)");
+  // Automated Resolution Service
+  console.log("\n[RESOLUTION] Initializing...");
+  resolutionQueue = new ResolutionQueue();
+  const resolutionAPI = new ResolutionAPI(resolutionQueue);
+  const httpPort = getHttpPort();
+
+  // Start HTTP server
+  httpServer = resolutionAPI.getApp().listen(httpPort, () => {
+    console.log(`[RESOLUTION] HTTP API listening on port ${httpPort}`);
+    console.log(`[RESOLUTION] Endpoints:`);
+    console.log(`  POST /resolution/schedule - Schedule market resolution`);
+    console.log(`  GET  /resolution/queue    - View resolution queue`);
+    console.log(`  GET  /health             - Health check`);
+  });
+
+  console.log("\nBridge service running (all components active)");
+  console.log("Services:");
+  console.log("  ✓ GenLayer → EVM relay");
+  console.log(`  ${betFactoryAddress ? '✓' : '✗'} EVM → GenLayer relay`);
+  console.log("  ✓ Automated resolution service");
+  console.log("  ✓ HTTP API");
 }
 
 main().catch((error) => {
@@ -41,12 +68,26 @@ main().catch((error) => {
 });
 
 // Graceful shutdown
-process.on("SIGTERM", () => {
-  console.log("Received SIGTERM. Shutting down...");
-  process.exit(0);
-});
+async function gracefulShutdown(signal: string) {
+  console.log(`\nReceived ${signal}. Starting graceful shutdown...`);
 
-process.on("SIGINT", () => {
-  console.log("Received SIGINT. Shutting down...");
+  // Shutdown resolution queue (cancel cron jobs and save state)
+  if (resolutionQueue) {
+    console.log("Shutting down resolution queue...");
+    resolutionQueue.shutdown();
+  }
+
+  // Close HTTP server
+  if (httpServer) {
+    console.log("Closing HTTP server...");
+    httpServer.close(() => {
+      console.log("HTTP server closed");
+    });
+  }
+
+  console.log("Graceful shutdown complete");
   process.exit(0);
-});
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

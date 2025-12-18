@@ -157,11 +157,15 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
     const renderProgressBar = () => (
         <div className={styles.progressSection}>
             <div className={styles.probabilityText}>
-                <span style={{ color: '#f97316' }}>{market?.sideAName ?? 'Side A'} {probability.toFixed(1)}%</span>
-                <span style={{ color: '#71717a' }}>{market?.sideBName ?? 'Side B'} {(100 - probability).toFixed(1)}%</span>
+                <span style={{ color: '#f97316' }}>{probability.toFixed(1)}%</span>
+                <span style={{ color: '#71717a' }}>{(100 - probability).toFixed(1)}%</span>
             </div>
             <div className={styles.barBackground}>
                 <div className={styles.barFill} style={{ width: `${probability}%` }}></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                <span style={{ fontSize: '12px', color: '#71717a' }}>{market?.sideAName ?? 'Side A'}</span>
+                <span style={{ fontSize: '12px', color: '#71717a' }}>{market?.sideBName ?? 'Side B'}</span>
             </div>
         </div>
     );
@@ -179,6 +183,7 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
 
         if (!isResolved && !isResolving) return null;
 
+
         return (
             <div className={styles.truthBlock}>
                 <div className={styles.truthHeader}>Resolution</div>
@@ -191,9 +196,9 @@ const MarketFullPage: React.FC<MarketFullPageProps> = ({
                         <>
                             <div
                                 className={`${styles.truthOutcome} ${
-                                    market?.resolvedOutcome === 'YES'
+                                    market?.resolvedOutcome === market?.sideAName
                                         ? styles.truthOutcomeYes
-                                        : market?.resolvedOutcome === 'NO'
+                                        : market?.resolvedOutcome === market?.sideBName
                                             ? styles.truthOutcomeNo
                                             : styles.truthOutcomeNeutral
                                 }`}

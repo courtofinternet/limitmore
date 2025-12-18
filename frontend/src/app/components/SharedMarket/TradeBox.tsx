@@ -182,7 +182,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                     <div className={styles.tradeBox}>
                         <div className={styles.subtleHeader}>
                             <span className={styles.marketStatus}>Market Resolved</span>
-                            <span className={`${styles.outcomeTag} ${market.resolvedOutcome === 'YES' ? styles.outcomeYes : styles.outcomeNo}`}>
+                            <span className={`${styles.outcomeTag} ${market.resolvedOutcome === market.sideAName ? styles.outcomeYes : styles.outcomeNo}`}>
                                 {market.resolvedOutcome} Won
                             </span>
                         </div>
@@ -197,7 +197,7 @@ const TradeBox: React.FC<TradeBoxProps> = ({ probability, market }) => {
                 <div className={styles.tradeBox}>
                     <div className={styles.subtleHeader}>
                         <span className={styles.marketStatus}>Market Resolved</span>
-                        <span className={`${styles.outcomeTag} ${market.resolvedOutcome === 'YES' ? styles.outcomeYes : styles.outcomeNo}`}>
+                        <span className={`${styles.outcomeTag} ${market.resolvedOutcome === market.sideAName ? styles.outcomeYes : styles.outcomeNo}`}>
                             {market.resolvedOutcome} Won
                         </span>
                     </div>

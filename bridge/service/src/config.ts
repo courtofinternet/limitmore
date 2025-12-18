@@ -14,6 +14,8 @@ interface Config {
   // EVM -> GenLayer direction
   baseSepoliaRpcUrl?: string;
   betFactoryAddress?: string;
+  // HTTP API
+  httpPort?: string;
 }
 
 function loadConfig(): Config {
@@ -27,6 +29,8 @@ function loadConfig(): Config {
     // EVM -> GenLayer
     BASE_SEPOLIA_RPC_URL,
     BET_FACTORY_ADDRESS,
+    // HTTP API
+    HTTP_PORT = '3001', // Default port
   } = process.env;
 
   try {
@@ -40,6 +44,8 @@ function loadConfig(): Config {
       // EVM -> GenLayer
       baseSepoliaRpcUrl: BASE_SEPOLIA_RPC_URL,
       betFactoryAddress: BET_FACTORY_ADDRESS,
+      // HTTP API
+      httpPort: HTTP_PORT,
     };
   } catch (error) {
     console.warn('Failed to load config:', error);
@@ -90,6 +96,13 @@ export function getBaseSepoliaRpcUrl(): string {
 
 export function getBetFactoryAddress(): string {
   return getRequiredConfig('betFactoryAddress', 'BET_FACTORY_ADDRESS');
+}
+
+// HTTP API getter
+export function getHttpPort(): number {
+  const config = loadConfig();
+  const port = config.httpPort || process.env.HTTP_PORT || '3001';
+  return parseInt(port, 10);
 }
 
 // Optional config getter (returns undefined instead of throwing)
