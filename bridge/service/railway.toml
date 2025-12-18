@@ -9,7 +9,3 @@ restartPolicyType = "always"
 
 [environment]
 NODE_ENV = "production"
-
-[nixpacks]
-# Explicitly set to Node.js provider
-provider = "node"
