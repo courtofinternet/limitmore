@@ -68,8 +68,16 @@ export class ResolutionAPI {
    * Setup Express routes
    */
   private setupRoutes(): void {
-    // Health check
+    // Health check endpoints
     this.app.get('/health', (req, res) => {
+      res.json({
+        success: true,
+        message: 'Bridge Resolution Service is running',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    this.app.get('/api/health', (req, res) => {
       res.json({
         success: true,
         message: 'Bridge Resolution Service is running',
