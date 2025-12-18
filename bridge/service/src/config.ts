@@ -101,7 +101,7 @@ export function getBetFactoryAddress(): string {
 // HTTP API getter
 export function getHttpPort(): number {
   const config = loadConfig();
-  const port = config.httpPort || process.env.HTTP_PORT || '3001';
+  const port = config.httpPort || process.env.PORT || process.env.HTTP_PORT || '3001';
   return parseInt(port, 10);
 }
 

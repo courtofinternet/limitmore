@@ -46,7 +46,7 @@ async function main() {
   const httpPort = getHttpPort();
 
   // Start HTTP server
-  httpServer = resolutionAPI.getApp().listen(httpPort, () => {
+  httpServer = resolutionAPI.getApp().listen(httpPort, '0.0.0.0', () => {
     console.log(`[RESOLUTION] HTTP API listening on port ${httpPort}`);
     console.log(`[RESOLUTION] Endpoints:`);
     console.log(`  POST /resolution/schedule - Schedule market resolution`);
