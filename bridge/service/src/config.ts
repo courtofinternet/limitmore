@@ -101,7 +101,8 @@ export function getBetFactoryAddress(): string {
 // HTTP API getter
 export function getHttpPort(): number {
   const config = loadConfig();
-  const port = config.httpPort || process.env.PORT || process.env.HTTP_PORT || '3001';
+  // Railway's PORT takes priority over config defaults
+  const port = process.env.PORT || config.httpPort || process.env.HTTP_PORT || '3001';
 
   // Debug logging for Railway
   console.log(`[CONFIG] Port resolution: config.httpPort=${config.httpPort}, process.env.PORT=${process.env.PORT}, final port=${port}`);
