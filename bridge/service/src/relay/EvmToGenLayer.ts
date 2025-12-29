@@ -84,8 +84,12 @@ export class EvmToGenLayerRelay {
     if (!filename) {
       throw new Error(`Unknown resolution type: ${resolutionType}`);
     }
-    // Load from local intelligent-oracles directory (relative to this file's location)
-    const contractPath = path.join(import.meta.dirname, "../../intelligent-oracles", filename);
+
+    // Use environment variable or fallback to process.cwd() for Railway compatibility
+    const oraclesBasePath = process.env.ORACLES_PATH || path.join(process.cwd(), "intelligent-oracles");
+    const contractPath = path.join(oraclesBasePath, filename);
+
+    console.log(`[EVM→GL] Loading oracle from: ${contractPath}`);
     return readFileSync(contractPath, "utf-8");
   }
 
